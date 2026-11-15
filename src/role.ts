@@ -41,7 +41,7 @@ export function pickRole(): Promise<Role> {
         <button class="rolechoice" data-role="student"><b>I'm a student</b><span>${esc("Notes with markers, the time dial and morning recall.")}</span></button>
         <button class="rolechoice" data-role="teacher"><b>I'm a teacher</b><span>${esc("Presentations, live classes students join by code, and worksheets.")}</span></button>
       </div>
-      <p><a class="btn" href="${esc(classroomUrl("student"))}">Join a class →</a></p><p class="muted small">You can switch any time in Settings.</p>
+      ${import.meta.env.VITE_ARTIFACT ? "" : `<p><a class="btn" href="${esc(classroomUrl("student"))}">Join a class →</a></p>`}<p class="muted small">You can switch any time in Settings.</p>
     </div>`;
     document.body.appendChild(wrap);
     const card = wrap.querySelector<HTMLElement>(".rolecard")!;

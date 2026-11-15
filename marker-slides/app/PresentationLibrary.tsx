@@ -5,7 +5,7 @@ import { importAccept,importPresentation } from './importPresentation';
 import { newLessons } from './newLessons';
 import { initialSlides } from './data';
 import { SlideFace,SlideThumb } from './SlideFace';
-import { notesLink } from './notesLink';
+import TopBar from './TopBar';
 
 /* The teacher's home: every presentation in this browser.
 
@@ -82,14 +82,10 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
   const [creating,setCreating]=useState(false);
-  const [dark,setDark]=useState(true);
-  useEffect(()=>setDark(document.documentElement.dataset.theme==='dark'),[]);
-  function toggleTheme(){const next=dark?'light':'dark';setDark(!dark);document.documentElement.dataset.theme=next;try{localStorage.setItem('lb-theme',next)}catch{}const url=new URL(location.href);url.searchParams.set('theme',next);history.replaceState(null,'',url.href);}
   const fileInput=useRef<HTMLInputElement>(null);
   const scroller=useRef<HTMLDivElement>(null);
   const [progress,setProgress]=useState('');
-  const theme=()=>document.documentElement.dataset.theme||'dark';
-  const editor=(id:string,slide?:number)=>location.pathname+'?deck='+encodeURIComponent(id)+(slide?'&slide='+slide:'')+'&theme='+theme();
+  const editor=(id:string,slide?:number)=>location.pathname+'?deck='+encodeURIComponent(id)+(slide?'&slide='+slide:'');
   useSlowScroll(scroller,!!viewer,setViewerIndex);
 
   useEffect(()=>{
@@ -152,8 +148,6 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
   const words=search.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const ordered=decks.filter(deck=>groups.every(([key])=>!filters[key]||deck[key]===filters[key])&&words.every(word=>[deck.title,deck.className,deck.unit,deck.topic].join(' ').toLowerCase().includes(word))).sort((a,b)=>
     order==='updated'?b.updated-a.updated:a[order].localeCompare(b[order],undefined,{numeric:true,sensitivity:'base'})||a.title.localeCompare(b.title));
-  const [links,setLinks]=useState<{lessons?:string|null,student?:string|null}>({});
-  useEffect(()=>setLinks({student:notesLink('student')}),[]);
   const examples=decks.filter(isExample);
   const exampleMarker=viewer?.sampleMarkers?.find(marker=>marker.id===markerId);
   const markerItems=(deck:Presentation)=>deck.lastSession ? deck.lastSession.questions : (deck.sampleMarkers||[]).map(m=>({...m,replies:m.response?[m.response]:[]}));
@@ -162,12 +156,10 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
   const date=(value?:number)=>value?new Date(value).toLocaleString():'Not recorded for this older presentation';
   const peak=review?.lastSession?Math.max(1,...review.lastSession.bySlide):1;
 
-  return <main className="deck-library">
-    <header className="library-header"><div><span className="brand library-brand"><span className="brandmark"><i/><i/><i/></span>LiveBoard<span className="brand-tag">SLIDES</span></span><h1>Presentations</h1>
+  return <><TopBar role="teacher" here="library"/><main className="deck-library">
+    <header className="library-header"><div><h1>Presentations</h1>
       <p className="library-stats">Create live lessons around your students’ questions.</p></div>
       <div className="library-header-actions">
-        <button className="outline library-theme" onClick={toggleTheme} aria-label={dark?"Switch to light mode":"Switch to dark mode"} title={dark?"Switch to light mode":"Switch to dark mode"}>{dark?"☀ Light":"☾ Dark"}</button>
-        {links.student&&<a className="library-switch" href={links.student} title="Use LiveBoard as a student on this device">Switch to student notes</a>}
         <input ref={fileInput} type="file" accept={importAccept} multiple hidden onChange={event=>{const files=Array.from(event.target.files||[]);event.target.value='';void importFiles(files)}}/>
         <button className="primary" disabled={busy} onClick={()=>setCreating(true)}>New presentation</button>
       </div>
@@ -247,5 +239,5 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
       </form>
     </section></div>}
     {remove&&<div className="modal-backdrop"><section className="modal" role="alertdialog" aria-modal="true" aria-label="Delete presentation"><h2>Delete {remove.title}?</h2><p>This removes the presentation{remove.lastSession?' and the questions kept from its last class':''} from this browser.</p><button className="outline" onClick={()=>setRemove(null)}>Cancel</button> <button className="primary" disabled={busy} onClick={()=>update(async()=>{await deletePresentation(remove.id);setRemove(null)})}>Delete presentation</button></section></div>}
-  </main>;
+  </main></>;
 }

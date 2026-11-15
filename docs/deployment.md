@@ -10,11 +10,11 @@ A checklist for a private staging deploy, then a pilot with 10–20 students. Se
 | Supabase | its own project (never share a database with production) | its own project |
 | Anthropic | its own key with a low monthly limit | its own key with a monthly limit you can afford |
 
-Secrets go only in Vercel's environment variables. Anything starting with `VITE_` is sent to the browser, so only the Supabase URL and anon key may use that prefix. The bundled classroom shares the app origin; see `docs/classroom-local.md` for the separate classroom API runtime. `ANTHROPIC_API_KEY` must never have it.
+Secrets go only in Vercel's environment variables. Anything starting with `VITE_` is sent to the browser, so only the Supabase URL and anon key may use that prefix. The bundled classroom shares the app origin and uses the same Supabase project for live classes, so it needs no extra hosting or variables; `docs/classroom-local.md` covers local development.
 
 ## Database
 
-1. Run `supabase/schema.sql` in the SQL editor. It is safe to run again; upgrades add what's missing. When upgrading a database that already has notes, it also gives older records sequence numbers so new devices download them (`tests/sql/upgrade.sh` checks this). Run it before deploying a new app version: the app needs the new functions.
+1. Run `supabase/schema.sql` in the SQL editor. It is safe to run again; upgrades add what's missing. When upgrading a database that already has notes, it also gives older records sequence numbers so new devices download them (`tests/sql/upgrade.sh` checks this). Run it before deploying a new app version: the app needs the new functions. This version adds the live-class tables and `room_*` functions; until the file has been run again, **Start live lesson** and **Join lesson** show an error.
 2. Check in **Database → Functions** that `push_rows` (three arguments), `push_profile`, `sync_state`, `begin_ai_request`, `log_recall` and `delete_my_data` exist, and that the old two-argument `push_rows` is gone.
 3. Check in **Authentication → Policies** that `notes`, `markers`, `courses` and `profiles` have only a read policy (writes go through `push_rows` and `push_profile`), and that `recall_events` has no insert policy.
 4. Turn on Point-in-Time Recovery or daily backups (Supabase **Database → Backups**) before the pilot.

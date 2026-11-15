@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 const artifact = !!process.env.ARTIFACT; // single-file build for a claude.ai artifact preview
+const artifactPage = process.env.ARTIFACT_PAGE || "index"; // "classroom" builds the teacher side's preview instead
 
 export default defineConfig({
   define: { "import.meta.env.VITE_ARTIFACT": JSON.stringify(artifact ? "1" : "") },
@@ -49,6 +50,6 @@ export default defineConfig({
     proxy: { "/api/rooms": process.env.CLASSROOM_API_PROXY || "http://127.0.0.1:5173", ...(process.env.API_PROXY ? { "/api/marker": process.env.API_PROXY } : {}) }
   },
   build: artifact
-    ? { target: "es2022", outDir: "dist-artifact", cssCodeSplit: false, assetsInlineLimit: 100_000_000, modulePreload: false, chunkSizeWarningLimit: 99999, rollupOptions: { output: { inlineDynamicImports: true } } }
+    ? { target: "es2022", outDir: artifactPage === "classroom" ? "dist-artifact-classroom" : "dist-artifact", cssCodeSplit: false, assetsInlineLimit: 100_000_000, modulePreload: false, chunkSizeWarningLimit: 99999, rollupOptions: { ...(artifactPage === "classroom" ? { input: "classroom.html" } : {}), output: { inlineDynamicImports: true } } }
     : { target: "es2022", chunkSizeWarningLimit: 1600, rollupOptions: { input: { main: "index.html", classroom: "classroom.html" } } }
 });

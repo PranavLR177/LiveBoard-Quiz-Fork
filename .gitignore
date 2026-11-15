@@ -12,3 +12,4 @@ dist-synctest
 public/ocr/*.js
 public/ocr/*.wasm
 public/ocr/*.gz
+dist-artifact-classroom

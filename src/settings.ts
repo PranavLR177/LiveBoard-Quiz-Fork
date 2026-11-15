@@ -3,15 +3,15 @@ import { blockedCount, course, exportAll, liveCourses, pendingCount, putCourse, 
 import { createClass, currentUser, deleteAccountData, reuploadAfterErase, joinClass, signIn, signOut, syncConfigured, verifyCode } from "./sync";
 import { MAX_BACKUP_BYTES, validateBackup } from "./backup";
 import { $, armButton, esc, toast } from "./util";
-import { isDark, setTheme, themeChoice, type ThemeChoice } from "./theme";
+import { setTheme, themeChoice, type ThemeChoice } from "./theme";
 import { getRole, setRole, type Role } from "./role";
 
+/** The classroom side (presentations, live classes), bundled with the app at /classroom.html on the same origin.
+    It reads the same light/dark choice and storage, so the link carries nothing but which screen to open. */
 export function classroomUrl(role: "student" | "teacher") {
   const url = new URL("classroom.html", location.href);
+  url.search = ""; url.hash = "";
   url.searchParams.set("view", role === "student" ? "student" : "library");
-  url.searchParams.set("theme", isDark() ? "dark" : "light");
-  // lets the presentations side link back here (it only trusts the configured address or this computer)
-  if (/^https?:$/.test(location.protocol)) url.searchParams.set("notes", location.origin + location.pathname);
   return url.href;
 }
 
@@ -80,10 +80,12 @@ export async function openSettings(section?: string, onChanged?: () => void) {
   });
   $("#sRole", panel)!.addEventListener("click", e => {
     const to = (e.currentTarget as HTMLElement).dataset.to as Role;
-    setRole(to);
     closeSettings();
-    if (to === "teacher" && !import.meta.env.VITE_ARTIFACT) location.assign(classroomUrl("teacher"));
-    else { if (to === "teacher") window.open(classroomUrl("teacher"), "_blank", "noopener"); if (location.hash) location.hash = ""; else onChanged?.(); }
+    // the single-file preview holds only the student side; the classroom is a separate page with its own preview
+    if (to === "teacher" && import.meta.env.VITE_ARTIFACT) { toast("This preview is the student side. The classroom (presentations and live classes) has its own preview.", 7000); return; }
+    setRole(to);
+    if (to === "teacher") location.assign(classroomUrl("teacher"));
+    else if (location.hash) location.hash = ""; else onChanged?.();
   });
   const name = $("#sName", panel) as HTMLInputElement;
   name.onchange = () => putMeta({ displayName: name.value.trim() });

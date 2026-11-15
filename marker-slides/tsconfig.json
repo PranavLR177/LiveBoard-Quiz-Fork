@@ -41,6 +41,7 @@
     "**/*.mts"
   ],
   "exclude": [
+    "client.tsx",
     "node_modules",
     "examples",
     "dist",

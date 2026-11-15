@@ -79,3 +79,15 @@ assert.equal((await post(mark,true)).status,200);
 assert.equal((await post({action:'control',studentMarkers:true},true)).status,200);
 assert.equal((await post(mark)).status,200);
 console.log('PASS: host-only student marker permission, student enforcement, teacher exemption, re-enable');
+
+// slide objects from the editor may carry pictures, but only embedded ones: a link would make every student's browser call another site
+const linked={...slide,elements:[{id:'a',kind:'image',src:'https://tracker.example/pixel.png',x:0,y:0,width:10,height:10,color:'theme'}]};
+assert.equal((await POST(request({action:'create',slides:[linked],title:'Linked picture'}))).status,400);
+const embedded={...slide,elements:[{id:'a',kind:'image',src:'data:image/png;base64,AAAA',x:0,y:0,width:10,height:10,color:'theme'}]};
+assert.equal((await POST(request({action:'create',slides:[embedded],title:'Embedded picture'}))).status,200);
+// ending a class: host only, and nothing of the room is left on the server
+assert.equal((await post({action:'end'})).status,403);
+assert.equal((await post({action:'end'},true)).status,200);
+assert.equal((await GET(new Request('https://test.local/api/rooms?id='+room.id))).status,404);
+assert.equal(sqlite.prepare('SELECT count(*) n FROM markers WHERE room=?').get(room.id).n,0);
+console.log('PASS: embedded-only slide pictures, host-only end of class that deletes the room and its markers');

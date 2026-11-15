@@ -12,7 +12,8 @@ import { bootOwner, claimSignedOutNotes, initSync, migrateLegacyShared, push, si
 import { $, debounce, esc, reducedMotion, toast } from "./util";
 import { newMarker } from "./store";
 import { renderTeacher } from "./teacher/workspace";
-import { getRole, pickRole, roleFromAddress } from "./role";
+import { mdToNoteHtml } from "./md";
+import { getRole, pickRole, roleFromAddress, setRole } from "./role";
 
 const stage = () => $("#stage")!;
 let currentNote: string | null = null;
@@ -172,10 +173,29 @@ async function seedWelcome() {
 }
 
 /** Sends a teacher to the presentations side. The preview can't leave its frame, so there it opens a new tab instead. */
+const PREVIEW_NOTE = "This preview is the student side. The classroom (presentations and live classes) is a separate page of the app, with its own preview.";
 function toPresentations() {
-  if (import.meta.env.VITE_ARTIFACT) { window.open(classroomUrl("teacher"), "_blank", "noopener"); return false; }
   location.replace(classroomUrl("teacher"));
   return true;
+}
+
+/** The classroom (same origin) leaves a student's class questions in a small queue (marker-slides/app/notesLink.ts);
+    each becomes a note here. The text is treated like any imported Markdown: sanitised, never run. */
+const CLASS_NOTES_KEY = "lb-class-notes";
+let takingClassNotes = false;
+async function takeClassNotes() {
+  if (takingClassNotes) return;
+  takingClassNotes = true;
+  try {
+    let list: unknown;
+    try { list = JSON.parse(localStorage.getItem(CLASS_NOTES_KEY) || "[]"); localStorage.removeItem(CLASS_NOTES_KEY); } catch { return; }
+    const items = (Array.isArray(list) ? list : []).filter((n): n is { title: string; markdown: string } => !!n && typeof n.title === "string" && typeof n.markdown === "string").slice(0, 20);
+    if (!items.length) return;
+    await ensureStarterCourse();
+    for (const n of items) await newNote(currentCourseId(), n.title.slice(0, 140), "lecture", mdToNoteHtml(n.markdown.slice(0, 200000)));
+    refresh();
+    toast(items.length === 1 ? "Your class questions were added to your notes." : `${items.length} sets of class questions were added to your notes.`, 6000);
+  } finally { takingClassNotes = false; }
 }
 
 async function boot() {
@@ -185,7 +205,8 @@ async function boot() {
   const picked = !role;
   if (role) document.documentElement.dataset.role = role;
   else role = await pickRole();
-  if (role === "teacher" && !location.hash && (picked || !import.meta.env.VITE_ARTIFACT) && toPresentations()) return;
+  if (import.meta.env.VITE_ARTIFACT && role === "teacher") { setRole("student"); role = "student"; if (picked) toast(PREVIEW_NOTE, 7000); } // the preview holds only the student side
+  if (role === "teacher" && !location.hash && toPresentations()) return;
   $("#today")!.textContent = new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
   // Whose notes these are is settled before anything is shown, so one account's notes never flash up for another.
   await migrateLegacyShared().catch(e => console.warn("legacy move", e));
@@ -199,9 +220,8 @@ async function boot() {
   tb.onclick = toggleTheme; onTheme(labelTheme); labelTheme();
   const join = $("#discussionJoin") as HTMLAnchorElement;
   const pres = $("#presentationsLink") as HTMLAnchorElement;
-  const updateJoin = () => { join.href = classroomUrl("student"); pres.href = classroomUrl("teacher"); };
-  updateJoin();
-  onTheme(updateJoin);
+  join.href = classroomUrl("student"); pres.href = classroomUrl("teacher");
+  if (import.meta.env.VITE_ARTIFACT) for (const a of [join, pres]) a.addEventListener("click", e => { e.preventDefault(); toast(PREVIEW_NOTE, 7000); });
   $("#settingsBtn")!.onclick = () => openSettings(undefined, refresh);
   // a study session ends with a quiz, on the dial, of exactly what was marked during it
   initSession({ exitTicket: ids => { queueRecall(ids, "Exit ticket"); if (location.hash.startsWith("#note-")) goHome(); } });
@@ -218,6 +238,10 @@ async function boot() {
   route();
   installUpdates();
   onChange(k => { if (k !== "meta") refresh(); });
+  // class questions a student added during a live lesson arrive as notes: now, and whenever this tab is looked at again
+  void takeClassNotes();
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) void takeClassNotes(); });
+  addEventListener("storage", e => { if (e.key === CLASS_NOTES_KEY) void takeClassNotes(); });
   initSync({
     beforeSwitch: async () => { flushNote(); await new Promise(r => setTimeout(r, 50)); },
     notice: msg => toast(msg, 6000)

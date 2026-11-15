@@ -24,3 +24,17 @@ export function notesLink(as:'student'|'teacher',hash=''){
   const base=notesUrl();if(!base)return null;
   const u=new URL(base);u.searchParams.set('as',as);u.hash=hash;return u.href;
 }
+
+/* Handing a note to the notes side. Both halves share one origin, so the classroom leaves the note in a small queue
+   in localStorage and the notes app turns it into a real note the next time it is open (src/main.ts, takeClassNotes).
+   Returns false when that isn't possible (stand-alone classroom, or storage blocked) so the caller can save a file. */
+export const CLASS_NOTES_KEY='lb-class-notes';
+export function queueNote(title:string,markdown:string){
+  if(!location.pathname.endsWith('/classroom.html'))return false;
+  try{
+    const list=JSON.parse(localStorage.getItem(CLASS_NOTES_KEY)||'[]');
+    const next=[...(Array.isArray(list)?list:[]),{title:title.slice(0,200),markdown:markdown.slice(0,200000),at:Date.now()}].slice(-20);
+    localStorage.setItem(CLASS_NOTES_KEY,JSON.stringify(next));
+    return true;
+  }catch{return false}
+}
