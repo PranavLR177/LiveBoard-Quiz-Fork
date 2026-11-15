@@ -95,6 +95,33 @@ const examples: Example[] = [
     'Both can use values and reasons. Classmates can join a petition or report where they need a station. The principal can authorize a facilities review, so emphasize placement, cost, and access.'],
 ];
 
+// Authored discussion prompts, grounded in each example slide.
+const markerPairs: [string,string][][] = [
+ [
+  ['Why is average atomic mass a weighted mean?', 'Each isotope contributes in proportion to its abundance. A more common isotope contributes more to the mean than a rare isotope.'],
+  ['Can every atom have the average mass?', 'No. Individual atoms belong to particular isotopes; the average describes a population. A weighted mean need not equal any individual isotope mass.'],
+  ['How do the abundances produce 10.8 u?', 'Convert percentages to fractions: 10.0 × 0.20 + 11.0 × 0.80 = 2.0 + 8.8 = 10.8 u. The fractions sum to one.'],
+  ['What would the mass spectrum show?', 'For singly charged ions, peaks correspond to the isotope masses near 10 and 11, with approximate relative intensities 1:4. There is no separate isotope peak at the average 10.8.'],
+  ['How can we find the heavier isotope’s abundance?', 'Let p be the fraction of the 11.0 u isotope. Then 10.0(1 − p) + 11.0p = 10.4, giving p = 0.40, or 40%.'],
+  ['How can we check the 40% result?', 'The lighter isotope is 60%. Recalculate: 10.0 × 0.60 + 11.0 × 0.40 = 10.4 u. The mean lies closer to 10 because the lighter isotope is more common.']
+ ],
+ [
+  ['How is a limit different from a function value?', 'A limit describes the values approached near a point. The function value describes what is assigned at the point itself; it can be missing or different.'],
+  ['What three things must hold for continuity?', 'The function must be defined at the point, its two-sided limit must exist, and that limit must equal the function value.'],
+  ['Why can we cancel x − 2?', 'Factor x² − 4 as (x − 2)(x + 2). For x ≠ 2, division by x − 2 is valid, so the quotient equals x + 2. At x = 2 the original denominator is zero.'],
+  ['Why is the limit 4 from both sides?', 'Near 2, the quotient equals x + 2. Values just below and just above 2 therefore approach 4, even though the original quotient is undefined at 2.'],
+  ['Which value fills the hole?', 'Define f(2) = 4. The nearby limit is 4, so this makes the function value agree with the limit.'],
+  ['What changes in the sketch when we define f(2)?', 'Before: draw y = x + 2 with an open circle at (2, 4). After defining f(2) = 4, replace it with a filled point. The rest of the graph is unchanged.']
+ ],
+ [
+  ['How does connotation differ from literal meaning?', 'Literal meaning identifies what a word denotes. Connotation adds associations and emotional shading that can suggest a writer’s attitude.'],
+  ['What evidence supports a claim about tone?', 'Identify a specific word, describe its associations, and connect those associations to an attitude. A tone label alone does not show how the language creates it.'],
+  ['What changes when settled becomes swallowed?', 'Settled suggests a gradual arrival or resting motion. Swallowed makes the fog seem active and consuming, suggesting the street disappears into it.'],
+  ['Must swallowed always create a frightening tone?', 'No. Context matters. The consuming image may suggest danger, concealment, or overwhelming scale; use surrounding details to support the interpretation.'],
+  ['How could we suggest excitement?', '“The crowd surged into the hall.” Surged suggests energetic collective motion. Explain how that energy fits the surrounding scene rather than assuming it always means excitement.'],
+  ['How could we suggest unease instead?', '“The crowd crept into the hall.” Crept suggests slow, cautious movement. Keeping the same event while changing the verb lets us compare how diction changes the mood.']
+ ]
+];
 /* One example per subject is enough to show how a lesson reads; a wall of fifteen made a new teacher's own decks hard to find. */
 export const sampleDecks:Presentation[]=examples.filter((_,index)=>index%5===0).map(([className,unit,topic,title,concept,example,task,question,response],index)=>{
   const id='sample-classroom-'+index*5;
@@ -105,6 +132,6 @@ export const sampleDecks:Presentation[]=examples.filter((_,index)=>index%5===0).
       {title:'Worked example',kicker:topic,body:example,detail:'Open the example student marker to discuss the reasoning.',visual:'none',notes:'Read the example together, then open the student question.'},
       {title:'Apply it',kicker:topic,body:task,detail:'Explain your answer before comparing reasoning.',visual:'none',notes:response}
     ],
-    sampleMarkers:[{id:id+'-question',slide:1,x:91,y:56,kind:'question',author:'Sample student',body:question,response,resolved:0,created:0}]
+    sampleMarkers:markerPairs[index].map(([body,response],n)=>({id:id+'-guided-'+n,slide:Math.floor(n/2),x:n%2?78:30,y:n%2?68:45,kind:'question' as const,author:'Example discussion',body,response,resolved:0,created:0}))
   };
 });

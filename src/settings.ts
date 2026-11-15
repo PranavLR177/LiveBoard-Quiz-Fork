@@ -7,8 +7,8 @@ import { isDark, setTheme, themeChoice, type ThemeChoice } from "./theme";
 import { getRole, setRole, type Role } from "./role";
 
 export function classroomUrl(role: "student" | "teacher") {
-  const url = new URL(import.meta.env.VITE_LIVEBOARD_SLIDES_URL || "https://liveboard-marker-slides.vmenon7433577.chatgpt.site");
-  if (role === "student") url.searchParams.set("view", "student");
+  const url = new URL("classroom.html", location.href);
+  url.searchParams.set("view", role === "student" ? "student" : "library");
   url.searchParams.set("theme", isDark() ? "dark" : "light");
   // lets the presentations side link back here (it only trusts the configured address or this computer)
   if (/^https?:$/.test(location.protocol)) url.searchParams.set("notes", location.origin + location.pathname);

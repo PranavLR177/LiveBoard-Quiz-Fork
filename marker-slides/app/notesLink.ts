@@ -6,6 +6,7 @@ const KEY='liveboard-notes-url';
 const local=(u:URL)=>['localhost','127.0.0.1','[::1]'].includes(u.hostname);
 
 export function notesUrl():string|null{
+  if(location.pathname.endsWith("/classroom.html"))return new URL("./",location.href).href;
   const configured=(import.meta as any).env?.VITE_LIVEBOARD_NOTES_URL as string|undefined;
   let base:URL|null=null;
   try{if(configured)base=new URL(configured)}catch{}

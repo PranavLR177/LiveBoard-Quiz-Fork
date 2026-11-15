@@ -70,3 +70,12 @@ const projection=await(await GET(new Request('https://test.local/api/rooms?id='+
 assert.equal(projection.markers.length,1);
 assert.equal(projection.replies.length,0);
 console.log('PASS: teacher marker visibility and student interaction');
+
+assert.equal((await post({action:'control',studentMarkers:false})).status,403);
+assert.equal((await post({action:'control',studentMarkers:false},true)).status,200);
+assert.equal((await get()).studentMarkers,0);
+assert.equal((await post(mark)).status,403);
+assert.equal((await post(mark,true)).status,200);
+assert.equal((await post({action:'control',studentMarkers:true},true)).status,200);
+assert.equal((await post(mark)).status,200);
+console.log('PASS: host-only student marker permission, student enforcement, teacher exemption, re-enable');

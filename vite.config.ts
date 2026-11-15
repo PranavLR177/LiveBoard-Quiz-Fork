@@ -6,6 +6,7 @@ const artifact = !!process.env.ARTIFACT; // single-file build for a claude.ai ar
 export default defineConfig({
   define: { "import.meta.env.VITE_ARTIFACT": JSON.stringify(artifact ? "1" : "") },
   worker: { format: "es" },
+  esbuild: { jsx: "automatic" },
   plugins: artifact ? [
     // the preview has no service worker; give the update hook an empty stand-in
     { name: "no-pwa", resolveId: (id: string) => (id === "virtual:pwa-register" ? "\0no-pwa" : null), load: (id: string) => (id === "\0no-pwa" ? "export const registerSW = () => () => Promise.resolve();" : null) }
@@ -32,9 +33,9 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/classroom\.html$/],
         // Precache the app shell plus the calculator and PDF import, so they work offline on first use; diagrams are cached once used.
-        globPatterns: ["index.html", "assets/index-*.{js,css}", "assets/mathWorker-*.js", "assets/pdf-*.js", "assets/pdf.worker.min-*.mjs", "*.{svg,png,webmanifest}", "icons/*.png"],
+        globPatterns: ["index.html", "classroom.html", "assets/classroom-*.{js,css}", "assets/index-*.{js,css}", "assets/main-*.{js,css}", "assets/mathWorker-*.js", "assets/pdf-*.js", "assets/pdf.worker.min-*.mjs", "*.{svg,png,webmanifest}", "icons/*.png"],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         runtimeCaching: [
           { urlPattern: ({ url }) => url.pathname.startsWith("/assets/"), handler: "CacheFirst", options: { cacheName: "liveboard-assets", expiration: { maxEntries: 300 } } },
@@ -45,9 +46,9 @@ export default defineConfig({
   ],
   server: {
     // During local dev, `vercel dev` serves /api. With plain `vite`, point this at a running `vercel dev`.
-    proxy: process.env.API_PROXY ? { "/api": process.env.API_PROXY } : undefined
+    proxy: { "/api/rooms": process.env.CLASSROOM_API_PROXY || "http://127.0.0.1:5173", ...(process.env.API_PROXY ? { "/api/marker": process.env.API_PROXY } : {}) }
   },
   build: artifact
     ? { target: "es2022", outDir: "dist-artifact", cssCodeSplit: false, assetsInlineLimit: 100_000_000, modulePreload: false, chunkSizeWarningLimit: 99999, rollupOptions: { output: { inlineDynamicImports: true } } }
-    : { target: "es2022", chunkSizeWarningLimit: 1600 }
+    : { target: "es2022", chunkSizeWarningLimit: 1600, rollupOptions: { input: { main: "index.html", classroom: "classroom.html" } } }
 });
