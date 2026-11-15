@@ -2,7 +2,7 @@
 import { useEffect,useRef,useState,type ReactNode } from 'react';
 import { deletePresentation,listPresentations,savePresentation,type Presentation } from './presentations';
 import { importAccept,importPresentation } from './importPresentation';
-import { sampleDecks } from './sampleDecks';
+import { newLessons } from './newLessons';
 import { initialSlides } from './data';
 import { SlideFace,SlideThumb } from './SlideFace';
 import { notesLink } from './notesLink';
@@ -71,6 +71,9 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
   const [viewer,setViewer]=useState<Presentation|null>(null);
   const [viewerIndex,setViewerIndex]=useState(0);
   const [markerId,setMarkerId]=useState('');
+  const [info,setInfo]=useState<Presentation|null>(null);
+  const [markerDeck,setMarkerDeck]=useState<Presentation|null>(null);
+  const [markerIndex,setMarkerIndex]=useState(0);
   const [review,setReview]=useState<Presentation|null>(null);
   const [edit,setEdit]=useState<Presentation|null>(null);
   const [remove,setRemove]=useState<Presentation|null>(null);
@@ -78,53 +81,34 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
   const [error,setError]=useState('');
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
+  const [creating,setCreating]=useState(false);
+  const [dark,setDark]=useState(true);
+  useEffect(()=>setDark(document.documentElement.dataset.theme==='dark'),[]);
+  function toggleTheme(){const next=dark?'light':'dark';setDark(!dark);document.documentElement.dataset.theme=next;try{localStorage.setItem('lb-theme',next)}catch{}const url=new URL(location.href);url.searchParams.set('theme',next);history.replaceState(null,'',url.href);}
   const fileInput=useRef<HTMLInputElement>(null);
   const scroller=useRef<HTMLDivElement>(null);
   const [progress,setProgress]=useState('');
   const theme=()=>document.documentElement.dataset.theme||'dark';
-  const editor=(id:string,slide?:number)=>'/?deck='+encodeURIComponent(id)+(slide?'&slide='+slide:'')+'&theme='+theme();
+  const editor=(id:string,slide?:number)=>location.pathname+'?deck='+encodeURIComponent(id)+(slide?'&slide='+slide:'')+'&theme='+theme();
   useSlowScroll(scroller,!!viewer,setViewerIndex);
 
   useEffect(()=>{
     async function load(){
       const saved=await listPresentations();
-      if(!localStorage.getItem('liveboard-sample-lessons-v1')){
-        for(const deck of sampleDecks){
-          if(saved.some(item=>item.id===deck.id))continue;
-          await savePresentation(deck);saved.push(deck);
-        }
-        localStorage.setItem('liveboard-sample-lessons-v1','1');
-      }
-      const raw=localStorage.getItem('marker-slides-host');
-      if(raw){
-        const host=JSON.parse(raw);
-        const key='room-'+host.id;
-        // Older versions retained only the most recent host room in this browser.
-        if(!host.presentationId && !localStorage.getItem('imported-'+key)){
-          if(!saved.some(deck=>deck.id===key)){
-            try{
-              const response=await fetch('/api/rooms?id='+encodeURIComponent(host.id),{headers:{Authorization:'Bearer '+host.secret}});
-              if(response.ok){
-                const room=await response.json() as Pick<Presentation,'title'|'slides'>;
-                const deck={id:key,title:room.title,slides:room.slides,className:'',unit:'',topic:'',updated:Date.now()};
-                await savePresentation(deck);
-                saved.push(deck);
-                localStorage.setItem('imported-'+key,'1');
-              }
-            }catch{ /* Saved decks remain available if the previous live room cannot be reached. */ }
-          }else localStorage.setItem('imported-'+key,'1');
-        }
+      if(!localStorage.getItem('liveboard-five-slide-examples-v1')){
+        for(const lesson of newLessons){if(!saved.some(deck=>deck.id===lesson.id)){await savePresentation(lesson);saved.push(lesson)}}
+        localStorage.setItem('liveboard-five-slide-examples-v1','1');
       }
       setDecks(saved);
     }
     load().catch(()=>setError('Could not open your presentations.')).finally(()=>setLoading(false));
   },[]);
   useEffect(()=>{
-    const key=(event:KeyboardEvent)=>{if(event.key!=='Escape')return;if(menu)setMenu('');else if(viewer)setViewer(null);else if(review)setReview(null)};
+    const key=(event:KeyboardEvent)=>{if(event.key!=='Escape')return;if(menu)setMenu('');else if(viewer)setViewer(null);else if(review)setReview(null);else if(creating)setCreating(false);else if(info)setInfo(null);else if(markerDeck)setMarkerDeck(null)};
     const away=(event:PointerEvent)=>{if(menu&&!(event.target as Element).closest('.deck-menu'))setMenu('')};
     document.addEventListener('keydown',key);document.addEventListener('pointerdown',away);
     return()=>{document.removeEventListener('keydown',key);document.removeEventListener('pointerdown',away)};
-  },[menu,viewer,review]);
+  },[menu,viewer,review,creating,info,markerDeck]);
 
   async function update(run:()=>Promise<void>){
     setBusy(true);setError('');
@@ -145,7 +129,7 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
     }
   }
   function create(){
-    setEdit({id:crypto.randomUUID(),title:'Untitled presentation',slides:[{...initialSlides[0],title:'Untitled slide',body:'',detail:'',notes:'',visual:'questions'}],className:'',unit:'',topic:'',updated:Date.now()});
+    setEdit({id:crypto.randomUUID(),title:'Untitled presentation',slides:[{...initialSlides[0],title:'Untitled slide',body:'',detail:'',notes:'',visual:'none'}],className:'',unit:'',topic:'',updated:Date.now()});
   }
   function download(name:string,text:string,type:string){
     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
@@ -169,39 +153,43 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
   const ordered=decks.filter(deck=>groups.every(([key])=>!filters[key]||deck[key]===filters[key])&&words.every(word=>[deck.title,deck.className,deck.unit,deck.topic].join(' ').toLowerCase().includes(word))).sort((a,b)=>
     order==='updated'?b.updated-a.updated:a[order].localeCompare(b[order],undefined,{numeric:true,sensitivity:'base'})||a.title.localeCompare(b.title));
   const [links,setLinks]=useState<{lessons?:string|null,student?:string|null}>({});
-  useEffect(()=>setLinks({lessons:notesLink('teacher','#teacher'),student:notesLink('student')}),[]);
-  const taught=decks.filter(deck=>deck.lastSession),collected=taught.reduce((n,deck)=>n+deck.lastSession!.total,0),examples=decks.filter(isExample);
+  useEffect(()=>setLinks({student:notesLink('student')}),[]);
+  const examples=decks.filter(isExample);
   const exampleMarker=viewer?.sampleMarkers?.find(marker=>marker.id===markerId);
+  const markerItems=(deck:Presentation)=>deck.lastSession ? deck.lastSession.questions : (deck.sampleMarkers||[]).map(m=>({...m,replies:m.response?[m.response]:[]}));
+  const markers=markerDeck?markerItems(markerDeck).map((m,i)=>({...m,sequence:i})).sort((a,b)=>Number(!!a.resolved)-Number(!!b.resolved)||a.slide-b.slide||a.sequence-b.sequence):[];
+  const activeMarker=markers[markerIndex];
+  const date=(value?:number)=>value?new Date(value).toLocaleString():'Not recorded for this older presentation';
   const peak=review?.lastSession?Math.max(1,...review.lastSession.bySlide):1;
 
   return <main className="deck-library">
     <header className="library-header"><div><span className="brand library-brand"><span className="brandmark"><i/><i/><i/></span>LiveBoard<span className="brand-tag">SLIDES</span></span><h1>Presentations</h1>
-      <p className="library-stats">{decks.length} presentation{decks.length===1?'':'s'}{taught.length?<> · {taught.length} taught live · {collected} question{collected===1?'':'s'} from your classes</>:<> · teach one live to collect your class’s questions here</>}</p></div>
+      <p className="library-stats">Create live lessons around your students’ questions.</p></div>
       <div className="library-header-actions">
-        {links.lessons&&<a className="outline" href={links.lessons} title="Turn a PDF or document into a worksheet with marker questions and hints">Worksheets</a>}
+        <button className="outline library-theme" onClick={toggleTheme} aria-label={dark?"Switch to light mode":"Switch to dark mode"} title={dark?"Switch to light mode":"Switch to dark mode"}>{dark?"☀ Light":"☾ Dark"}</button>
         {links.student&&<a className="library-switch" href={links.student} title="Use LiveBoard as a student on this device">Switch to student notes</a>}
         <input ref={fileInput} type="file" accept={importAccept} multiple hidden onChange={event=>{const files=Array.from(event.target.files||[]);event.target.value='';void importFiles(files)}}/>
-        <button className="outline" disabled={busy} onClick={()=>fileInput.current?.click()} title="A PDF, a LiveBoard file, or PNG, JPEG and WebP images. From PowerPoint or Google Slides, export a PDF first.">Import slides</button>
-        <button className="primary" disabled={busy} onClick={create}>New presentation</button>
+        <button className="primary" disabled={busy} onClick={()=>setCreating(true)}>New presentation</button>
       </div>
     </header>
     {progress&&<p role="status">{progress}</p>}
+    <div className="library-search-row"><label className="library-search">Search<input type="search" value={search} placeholder="Title, class, unit or topic" onChange={event=>setSearch(event.target.value)}/></label><span role="status">{ordered.length} {ordered.length===1?"presentation":"presentations"}{ordered.length!==decks.length?` of ${decks.length}`:""}</span></div>
     <div className="library-filters">
-      <label className="library-search">Search<input type="search" value={search} placeholder="Title, class, unit or topic" onChange={event=>setSearch(event.target.value)}/></label>
       {facets.map(([key,label])=><label key={key}>{label}<select value={filters[key]} onChange={event=>setFilters({...filters,[key]:event.target.value})}><option value="">All</option>{[...new Set(decks.map(deck=>deck[key]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(value=><option key={value}>{value}</option>)}</select></label>)}
       <label>Sort by<select value={order} onChange={event=>setOrder(event.target.value as Order)}><option value="updated">Most recent</option><option value="title">Title</option>{facets.map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
     </div>
     {error&&<p role="alert">{error}</p>}
     {loading?<p>Loading presentations…</p>:ordered.length===0?<p className="library-empty">{decks.length?'No presentations match.':'Nothing here yet. Import the slides you already teach from, or start a new presentation.'}</p>:<ul className="deck-grid">{ordered.map(deck=><li key={deck.id}>
-      <button className="deck-cover" aria-label={'Look through the slides of '+deck.title} onClick={()=>{setViewer(deck);setViewerIndex(0);setMarkerId('')}}>
+      <a className="deck-cover" aria-label={'Open presentation: '+deck.title} href={editor(deck.id)}>
         {deck.slides[0]&&<SlideThumb slide={deck.slides[0]} renderVisual={renderVisual}/>}
         <span className="deck-count">{deck.slides.length} slide{deck.slides.length===1?'':'s'}</span>{isExample(deck)&&<span className="deck-example">Example</span>}
-      </button>
+      </a>
       <div className="deck-details"><h2><a href={editor(deck.id)}>{deck.title}</a></h2><p>{[deck.className,deck.unit,deck.topic].filter(Boolean).join(' · ')||'No class set'}</p>
       {deck.lastSession&&<button className="deck-session" onClick={()=>setReview(deck)}><b>{deck.lastSession.total}</b> question{deck.lastSession.total===1?'':'s'} from class{deck.lastSession.open?<> · <em>{deck.lastSession.open} open</em></>:' · all answered'}<small>{ago(deck.lastSession.at)} · Review class →</small></button>}
-      <div className="deck-actions"><a className="deck-open" href={editor(deck.id)}>Open</a><button onClick={()=>{setViewer(deck);setViewerIndex(0);setMarkerId('')}}>Slides</button>
+      <p className="deck-edited" title={date(deck.updated)}>{deck.updated?`Last edited ${new Date(deck.updated).toLocaleDateString()}`:"Not edited yet"}</p><div className="deck-actions"><a className="deck-open" href={editor(deck.id)}>Open</a><button onClick={()=>{setMarkerDeck(deck);setMarkerIndex(0)}}>Markers · {markerItems(deck).length}</button>
         <span className="deck-menu"><button aria-label={'More for '+deck.title} aria-haspopup="menu" aria-expanded={menu===deck.id} onClick={()=>setMenu(menu===deck.id?'':deck.id)}>•••</button>
           {menu===deck.id&&<span className="deck-menu-list" role="menu">
+            <button role="menuitem" onClick={()=>{setMenu('');setInfo(deck)}}>Presentation info</button>
             <button role="menuitem" onClick={()=>{setMenu('');setEdit(deck)}}>Title and class…</button>
             <button role="menuitem" disabled={busy} onClick={()=>{setMenu('');void update(async()=>{await savePresentation({...deck,id:crypto.randomUUID(),title:deck.title+' (copy)',updated:Date.now(),lastSession:undefined});setFilters({className:'',unit:'',topic:''})})}}>Duplicate</button>
             <button role="menuitem" onClick={()=>{setMenu('');download(fileName(deck.title)+'.liveboard.json',JSON.stringify({title:deck.title,slides:deck.slides},null,2),'application/json')}}>Save as a file</button>
@@ -209,6 +197,17 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
           </span>}</span></div></div>
     </li>)}</ul>}
     {examples.length>0&&decks.length>examples.length&&<p className="library-examples">The {examples.length} example{examples.length===1?'':'s'} can go once you have your own. <button disabled={busy} onClick={()=>update(async()=>{for(const deck of examples)await deletePresentation(deck.id)})}>Remove examples</button></p>}
+
+    {info&&<div className="modal-backdrop" onClick={()=>setInfo(null)}><section className="modal" role="dialog" aria-modal="true" aria-label="Presentation info" onClick={e=>e.stopPropagation()}><button className="modal-close" aria-label="Close information" onClick={()=>setInfo(null)}>×</button><span className="eyebrow">PRESENTATION INFO</span><h2>{info.title}</h2><dl className="presentation-info"><dt>Created</dt><dd>{date(info.created)}</dd><dt>Last edited</dt><dd>{date(info.updated)}</dd><dt>Slides</dt><dd>{info.slides.length}</dd><dt>Markers</dt><dd>{markerItems(info).length}</dd>{groups.map(([key,label])=><div key={key}><dt>{label}</dt><dd>{info[key]||'Not set'}</dd></div>)}<dt>Last live class</dt><dd>{info.lastSession?date(info.lastSession.at):'Not taught live yet'}</dd></dl></section></div>}
+    {markerDeck&&<div className="modal-backdrop" onClick={()=>setMarkerDeck(null)}><section className="modal marker-browser" role="dialog" aria-modal="true" aria-label="Presentation markers" onClick={e=>e.stopPropagation()}><button className="modal-close" aria-label="Close markers" onClick={()=>setMarkerDeck(null)}>×</button><span className="eyebrow">PRESENTATION MARKERS</span><h2>{markerDeck.title}</h2><p className="quiet">Open markers first, then resolved · ordered by slide</p>{markers.length?<div className="library-marker-layout"><div className="library-marker-list">{markers.map((marker,i)=><div key={i}>{(i===0||!!markers[i-1].resolved!==!!marker.resolved)&&<h3>{marker.resolved?'Resolved markers':'Open markers'}</h3>}<button className={'marker-card '+(markerIndex===i?'selected':'')} style={{'--tc':'var(--student-marker)'} as any} onClick={()=>setMarkerIndex(i)}><div><span className="intent-dot">{marker.kind==='question'?'?':marker.kind==='explain'?'↗':'✧'}</span><b>{marker.kind==='question'?'Question':marker.kind==='explain'?'Explain again':'Idea'}</b><span className="card-chevron">↗</span></div><p>{marker.body}</p><footer>{marker.author}<i> · </i>Slide {marker.slide+1}{!!marker.resolved&&' · Resolved'}</footer></button></div>)}</div>{activeMarker&&<article className="marker-browser-detail"><span className="eyebrow">SLIDE {activeMarker.slide+1} · {activeMarker.resolved?'RESOLVED':'OPEN'}</span><h3>{activeMarker.kind==='question'?'Question':activeMarker.kind==='explain'?'Explain again':'Idea'}</h3><p>{activeMarker.body}</p><small>{activeMarker.author}</small>{activeMarker.replies.map((reply,i)=><blockquote key={i}>{reply}</blockquote>)}{!activeMarker.replies.length&&<p className="quiet">No replies yet.</p>}<a className="outline" href={editor(markerDeck.id,activeMarker.slide)}>Open this slide</a><nav className="marker-browser-nav" aria-label="Browse markers"><button className="outline" disabled={!markerIndex} onClick={()=>setMarkerIndex(i=>i-1)}>← Previous</button><span>{markerIndex+1} / {markers.length}</span><button className="outline" disabled={markerIndex===markers.length-1} onClick={()=>setMarkerIndex(i=>i+1)}>Next →</button></nav></article>}</div>:<p>No saved markers yet.</p>}</section></div>}
+
+    {creating&&<div className="modal-backdrop" onClick={()=>setCreating(false)}><section className="modal creation-picker" role="dialog" aria-modal="true" aria-label="New presentation" onClick={event=>event.stopPropagation()}>
+      <button className="modal-close" aria-label="Close new presentation" onClick={()=>setCreating(false)}>×</button>
+      <span className="eyebrow">YOUR NEXT LIVE LESSON</span><h2>Start a presentation</h2><p>Turn your ideas into a conversation with your class.</p>
+      <button className="creation-option" onClick={()=>{setCreating(false);create()}}><b>✦ Start from scratch</b><span>A blank slide. Your ideas, your way.</span></button>
+      <button className="creation-option" onClick={()=>{setCreating(false);fileInput.current?.click()}}><b>↑ Import slides</b><span>Bring a PDF, images, or a LiveBoard file.</span></button>
+      <p className="fineprint">Using PowerPoint or Google Slides? Export as a PDF first.</p>
+    </section></div>}
 
     {viewer&&<div className="modal-backdrop" onClick={()=>setViewer(null)}><section className="modal slides-viewer" role="dialog" aria-modal="true" aria-label={'Slides of '+viewer.title} onClick={event=>event.stopPropagation()}>
       <header className="viewer-head"><div><span className="eyebrow">{[viewer.className,viewer.unit,viewer.topic].filter(Boolean).join(' / ')||'PRESENTATION'}</span><h2>{viewer.title}</h2></div>
