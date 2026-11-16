@@ -5,6 +5,7 @@ import { MAX_BACKUP_BYTES, validateBackup } from "./backup";
 import { $, armButton, esc, toast } from "./util";
 import { setTheme, themeChoice, type ThemeChoice } from "./theme";
 import { classroomUrl, getRole, setRole, type Role } from "./role";
+import { openClassroom } from "./classroom/open";
 
 export { classroomUrl };
 
@@ -75,10 +76,8 @@ export async function openSettings(section?: string, onChanged?: () => void) {
     const to = (e.target as HTMLElement).closest<HTMLElement>("[data-to]")?.dataset.to as Role | undefined;
     if (!to || to === role) return;
     closeSettings();
-    // the single-file preview holds only the student side; the classroom is a separate page with its own preview
-    if (to === "teacher" && import.meta.env.VITE_ARTIFACT) { toast("This preview is the student side. The classroom (presentations and live classes) has its own preview.", 7000); return; }
     setRole(to);
-    if (to === "teacher") location.assign(classroomUrl("teacher"));
+    if (to === "teacher") void openClassroom("teacher");
     else if (location.hash) location.hash = ""; else onChanged?.();
   });
   const name = $("#sName", panel) as HTMLInputElement;

@@ -13,8 +13,9 @@ import { $, debounce, esc, reducedMotion, toast } from "./util";
 import { newMarker } from "./store";
 import { renderTeacher } from "./teacher/workspace";
 import { mdToNoteHtml } from "./md";
-import { getRole, pickRole, roleFromAddress, setRole } from "./role";
+import { getRole, pickRole, roleFromAddress } from "./role";
 import { installDevSwitch } from "./devSwitch";
+import { classroomShowing, onClassroomLeave, openClassroom } from "./classroom/open";
 
 const stage = () => $("#stage")!;
 let currentNote: string | null = null;
@@ -26,7 +27,7 @@ async function route() {
   closeTeacher?.(); closeTeacher = null;
   const teacher = location.hash === "#teacher";
   // a teacher's home is the presentations side; Worksheets (#teacher) and any note link still open here
-  if (!import.meta.env.VITE_ARTIFACT && !teacher && !location.hash && getRole() === "teacher" && toPresentations()) return;
+  if (!teacher && !location.hash && getRole() === "teacher" && toPresentations()) return;
   document.querySelector('#teacherLink')?.setAttribute('aria-current', teacher ? 'page' : 'false');
   if (teacher) {
     destroyHome();
@@ -45,7 +46,9 @@ async function route() {
 function morph(update: () => void | Promise<void>) {
   const start = (document as Document & { startViewTransition?: (cb: () => void | Promise<void>) => unknown }).startViewTransition;
   if (!start || reducedMotion() || document.visibilityState !== "visible") return void update();
-  start.call(document, update);
+  // a transition that gets interrupted by the next one rejects its promises; that is expected, not an error
+  const t = start.call(document, update) as { ready?: Promise<unknown>; finished?: Promise<unknown>; updateCallbackDone?: Promise<unknown> } | undefined;
+  for (const p of [t?.ready, t?.finished, t?.updateCallbackDone]) p?.catch(() => {});
 }
 /** Opening a marker from the home page: the whole screen swings away to the right like a door, and the note is
  *  already there behind it. Uses a view transition where there is one; elsewhere the stage slides out, then in. */
@@ -55,7 +58,7 @@ function swipeTo(open: () => void) {
   if (start) {
     root.classList.add("vt-swipe");
     const done = () => root.classList.remove("vt-swipe");
-    try { start.call(document, open).finished.then(done, done); } catch { done(); open(); }
+    try { const t = start.call(document, open) as { finished: Promise<void>; ready?: Promise<unknown> }; t.ready?.catch(() => {}); t.finished.then(done, done); } catch { done(); open(); }
     return;
   }
   const st = stage();
@@ -174,8 +177,10 @@ async function seedWelcome() {
 }
 
 /** Sends a teacher to the presentations side. The preview can't leave its frame, so there it opens a new tab instead. */
-const PREVIEW_NOTE = "This preview is the student side. The classroom (presentations and live classes) is a separate page of the app, with its own preview.";
+/** A teacher's home is the classroom. In the app that is another page, so this leaves (returns true). In the
+    single-file preview the classroom opens over the notes side in the same page, and start-up carries on underneath. */
 function toPresentations() {
+  if (import.meta.env.VITE_ARTIFACT) { if (!classroomShowing()) void openClassroom("teacher"); return false; }
   location.replace(classroomUrl("teacher"));
   return true;
 }
@@ -204,10 +209,10 @@ async function boot() {
   roleFromAddress();
   installDevSwitch(); // development only: remove before launch (see src/devSwitch.ts)
   let role = getRole();
-  const picked = !role;
   if (role) document.documentElement.dataset.role = role;
   else role = await pickRole();
-  if (import.meta.env.VITE_ARTIFACT && role === "teacher") { setRole("student"); role = "student"; if (picked) toast(PREVIEW_NOTE, 7000); } // the preview holds only the student side
+  // In the app a teacher goes straight to the classroom page. The single-file preview carries both sides in one page,
+  // so there the notes side still starts up underneath and the classroom opens over it (route() does that).
   if (role === "teacher" && !location.hash && toPresentations()) return;
   $("#today")!.textContent = new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
   // Whose notes these are is settled before anything is shown, so one account's notes never flash up for another.
@@ -223,7 +228,8 @@ async function boot() {
   const join = $("#discussionJoin") as HTMLAnchorElement;
   const pres = $("#presentationsLink") as HTMLAnchorElement;
   join.href = classroomUrl("student"); pres.href = classroomUrl("teacher");
-  if (import.meta.env.VITE_ARTIFACT) for (const a of [join, pres]) a.addEventListener("click", e => { e.preventDefault(); toast(PREVIEW_NOTE, 7000); });
+  if (import.meta.env.VITE_ARTIFACT) for (const [a, view] of [[join, "student"], [pres, "teacher"]] as const) a.addEventListener("click", e => { e.preventDefault(); void openClassroom(view); });
+  onClassroomLeave(() => { void route(); refresh(); });
   $("#settingsBtn")!.onclick = () => openSettings(undefined, refresh);
   // a study session ends with a quiz, on the dial, of exactly what was marked during it
   initSession({ exitTicket: ids => { queueRecall(ids, "Exit ticket"); if (location.hash.startsWith("#note-")) goHome(); } });

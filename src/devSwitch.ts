@@ -1,4 +1,5 @@
 import { classroomUrl, getRole, isRole, setRole, type Role } from "./role";
+import { classroomShowing, leaveClassroom, openClassroom, redrawNotes } from "./classroom/open";
 
 /* DEVELOPMENT ONLY — remove before launch (delete this file and its two imports: src/main.ts and
    marker-slides/client.tsx), or build with VITE_DEV_SWITCH=0 to leave it out.
@@ -9,7 +10,6 @@ const NAMES: Record<Role, string> = { individual: "Just me", student: "Student",
 
 export function installDevSwitch() {
   if (import.meta.env.VITE_DEV_SWITCH === "0" || document.getElementById("devSwitch")) return;
-  if (import.meta.env.VITE_ARTIFACT && document.getElementById("classroom-root")) return; // the classroom's single-file preview has no other side to switch to
   const onClassroom = location.pathname.endsWith("/classroom.html");
   const notesHome = new URL(onClassroom ? "./" : location.pathname, location.href).pathname;
   const el = document.createElement("div");
@@ -29,10 +29,16 @@ export function installDevSwitch() {
   dot.onclick = () => dot.setAttribute("aria-expanded", String(el.classList.toggle("open")));
   el.querySelectorAll<HTMLButtonElement>("[data-dev]").forEach(b => b.onclick = () => {
     const to = b.dataset.dev!;
-    if (to === "welcome") { try { localStorage.removeItem(KEY); } catch {} location.assign(notesHome); return; }
+    if (to === "welcome") { try { localStorage.removeItem(KEY); } catch {} if (import.meta.env.VITE_ARTIFACT) location.reload(); else location.assign(notesHome); return; }
     if (!isRole(to)) return;
-    if (to === "teacher" && import.meta.env.VITE_ARTIFACT) { dot.textContent = "n/a"; setTimeout(() => { dot.textContent = "DEV"; }, 1200); return; } // the preview holds one side per page
     setRole(to);
+    el.querySelectorAll<HTMLElement>("[data-dev]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.dev === to)));
+    if (import.meta.env.VITE_ARTIFACT) { // the preview is one page holding both sides: swap them in place
+      if (to === "teacher") void openClassroom("teacher");
+      else if (classroomShowing()) void leaveClassroom(to);
+      else { if (location.hash) location.hash = ""; redrawNotes(); }
+      return;
+    }
     location.assign(to === "teacher" ? classroomUrl("teacher") : notesHome);
   });
 }

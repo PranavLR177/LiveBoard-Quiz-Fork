@@ -25,7 +25,7 @@ const out = [
   title,
   `<meta name="claude:viewport-fit-sides" content="cover">`,
   head.replace(title, "").trim(),
-  ...css.map(c => `<style>${c}</style>`),
+  ...css.map(c => `<style data-lb-notes>${c}</style>`), // tagged so the preview can switch this sheet off while the classroom is showing
   body.trim(),
   ...js.map(j => `<script type="module">${j.replace(/<\/script/gi, "<\\/script")}</script>`)
 ].join("\n");
