@@ -565,6 +565,44 @@ const BASE = process.env.BASE || "http://localhost:4173";
     await c4.close();
   }
 
+  // dial-first home: the dial takes most of the screen; the top line and what's under the dial stay tucked away
+  // (small and faint) and come up to full size when you go to them.
+  {
+    const c5 = await b.newContext({ viewport: { width: 1366, height: 768 }, serviceWorkers: "block" });
+    await c5.addInitScript(() => { try { localStorage.setItem("liveboard-role", "student"); } catch {} });
+    const h = await c5.newPage();
+    h.on("pageerror", e => errs.push("pageerror: " + e.message));
+    await h.route(/fonts\.(googleapis|gstatic)\.com/, x => x.abort());
+    await h.route("**/api/marker", x => x.fulfill({ json: { ai: false } }));
+    await h.goto(BASE); await h.waitForSelector(".fcard");
+    await h.waitForFunction(() => !document.querySelector("#dial.intro3d"), null, { timeout: 8000 }).catch(() => {}); await h.waitForTimeout(2600); // the opening swing-up changes the measured size
+    await h.mouse.move(683, 500);
+    const look = sel => h.$eval(sel, e => { const c = getComputedStyle(e), m = new DOMMatrixReadOnly(c.transform); return { scale: +m.a.toFixed(2), opacity: +(+c.opacity).toFixed(2), h: e.getBoundingClientRect().height }; });
+    const dialBox = await h.locator("#dial").boundingBox(), stageH = await h.$eval("#stage", e => e.clientHeight);
+    ok(dialBox.height / stageH > 0.7, `the dial takes most of the screen (${Math.round(dialBox.height)}px of ${stageH}px)`);
+    const tucked = await look("#morning");
+    ok(tucked.scale < 0.8 && tucked.opacity < 0.7, `the top line starts tucked away: smaller and faint (scale ${tucked.scale}, opacity ${tucked.opacity})`);
+    const dialTop = dialBox.y;
+    await h.hover("#morning .greet"); await h.waitForTimeout(500);
+    const awake = await look("#morning");
+    ok(awake.scale === 1 && awake.opacity === 1, "pointing at it brings it up to full size");
+    ok(Math.abs((await h.locator("#dial").boundingBox()).y - dialTop) < 1, "and the dial doesn't move when it does");
+    await h.mouse.move(683, 500); await h.waitForTimeout(500);
+    ok((await look("#morning")).scale < 0.8, "it tucks away again when you leave");
+    await h.mouse.move(60, 400); await h.mouse.wheel(0, -120); await h.waitForTimeout(450);
+    ok((await look("#morning")).scale === 1, "scrolling up toward it wakes it too");
+    await h.mouse.wheel(0, 120); await h.waitForTimeout(450);
+    await h.click("#calBtn"); await h.waitForSelector(".calpop:not([hidden])"); await h.mouse.move(683, 600); await h.waitForTimeout(450);
+    ok((await look("#morning")).scale === 1, "it stays full size while one of its panels is open");
+    await h.keyboard.press("Escape"); await h.mouse.click(60, 500);
+    const sleepy = await look("#follow");
+    ok(sleepy.scale < 1 && sleepy.opacity < 0.5, "what's under the dial is tucked away as well");
+    await h.mouse.move(60, 400); await h.mouse.wheel(0, 500); await h.waitForTimeout(500);
+    const up = await look("#follow");
+    ok(up.scale === 1 && up.opacity === 1, "and comes up to full size as you scroll down to it");
+    await c5.close();
+  }
+
   await b.close();
   console.log(errs.length ? "\nFAILURES:\n" + errs.join("\n") : "\nALL REGRESSIONS PASS");
   process.exit(errs.length ? 1 : 0);
