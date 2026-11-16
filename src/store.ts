@@ -1,6 +1,7 @@
 import Dexie, { type Table } from "dexie";
 import type { Course, Marker, Meta, Note } from "./types";
 import { COURSE_COLORS, DAY, uid } from "./util";
+import { getRole } from "./role";
 
 /*
   Local-first storage. Everything lives in IndexedDB and works offline; sync.ts mirrors it to Supabase.
@@ -62,7 +63,7 @@ export const state = {
 };
 
 const defaultMeta = (): Meta => ({ key: "meta", studyDays: [], points: 0, scope: "due", showTools: false, lastPull: 0, displayName: "", updatedAt: Date.now(), seeded: false });
-const SYNCED_META: (keyof Meta)[] = ["studyDays", "points", "displayName"];
+const SYNCED_META: (keyof Meta)[] = ["studyDays", "points", "displayName", "deadlines"];
 
 /** Open the database for this owner (null = signed out) and load it. Nothing renders before this resolves. */
 export async function openStore(owner: string | null) {
@@ -378,7 +379,7 @@ export function streak() {
 
 export async function ensureStarterCourse() {
   if (liveCourses().length) return;
-  await newCourse("My first course");
+  await newCourse(getRole() === "individual" ? "Personal" : "My first course");
 }
 
 /* ---------- backup ---------- */

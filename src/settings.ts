@@ -4,16 +4,9 @@ import { createClass, currentUser, deleteAccountData, reuploadAfterErase, joinCl
 import { MAX_BACKUP_BYTES, validateBackup } from "./backup";
 import { $, armButton, esc, toast } from "./util";
 import { setTheme, themeChoice, type ThemeChoice } from "./theme";
-import { getRole, setRole, type Role } from "./role";
+import { classroomUrl, getRole, setRole, type Role } from "./role";
 
-/** The classroom side (presentations, live classes), bundled with the app at /classroom.html on the same origin.
-    It reads the same light/dark choice and storage, so the link carries nothing but which screen to open. */
-export function classroomUrl(role: "student" | "teacher") {
-  const url = new URL("classroom.html", location.href);
-  url.search = ""; url.hash = "";
-  url.searchParams.set("view", role === "student" ? "student" : "library");
-  return url.href;
-}
+export { classroomUrl };
 
 /* Settings: account, AI status, courses and classes, backup. */
 function blockedReasons() {
@@ -36,11 +29,11 @@ export async function openSettings(section?: string, onChanged?: () => void) {
   if (!panel) return;
   const user = currentUser();
   const courses = liveCourses();
+  const role: Role = getRole() || "student", school = role !== "individual"; // class sharing, exam dates and leaderboards are school things
   $("#sBody", panel)!.innerHTML = `
     <section id="account"><h3>Account</h3>
-      ${getRole() === "teacher"
-        ? `<p class="muted classroom-row">You're using LiveBoard as a <b>teacher</b>: <a class="classroom-link" id="teacherPresentation" href="${esc(classroomUrl("teacher"))}">Presentations</a> and live classes, plus <a class="classroom-link" href="#teacher">Worksheets</a> from your PDFs. <button class="linkbtn" id="sRole" data-to="student">Switch to student</button></p>`
-        : `<p class="muted classroom-row">You're using LiveBoard as a <b>student</b>. In class, <a class="classroom-link" id="studentDiscussion" href="${esc(classroomUrl("student"))}">join a live lesson</a> with your teacher's code. <button class="linkbtn" id="sRole" data-to="teacher">Switch to teacher</button></p>`}
+      <p class="muted classroom-row">You're using LiveBoard ${{ individual: "for <b>yourself</b>: notes, notebooks and a calendar, with no class features.", student: `as a <b>student</b>. In class, <a class="classroom-link" id="studentDiscussion" href="${esc(classroomUrl("student"))}">join a live lesson</a> with your teacher's code.`, teacher: `as a <b>teacher</b>: <a class="classroom-link" id="teacherPresentation" href="${esc(classroomUrl("teacher"))}">Presentations</a> and live classes, plus <a class="classroom-link" href="#teacher">Worksheets</a> from your PDFs.` }[role]}</p>
+      <div class="seg roleseg" id="sRole" role="radiogroup" aria-label="Use LiveBoard as">${(["individual", "student", "teacher"] as const).map(r => `<button role="radio" data-to="${r}" aria-checked="${role === r}">${{ individual: "Just me", student: "Student", teacher: "Teacher" }[r]}</button>`).join("")}</div>
       ${!syncConfigured() ? `<p class="muted">Sync isn't set up on this server, so notes are saved on this device only. Export a backup below to move them.</p>`
         : user ? `<p>Signed in as <b>${esc(user.email)}</b>. Notes sync across your devices.${pendingCount() ? ` <span class="muted">${pendingCount()} change${pendingCount() === 1 ? "" : "s"} waiting to upload.</span>` : ""}</p>
           <div class="row"><button class="btn" id="sOut">Sign out</button><button class="btn" id="sOutRemove" title="Also delete this account's notes from this device once they're uploaded">Sign out and remove from this device</button></div>
@@ -50,7 +43,7 @@ export async function openSettings(section?: string, onChanged?: () => void) {
           <p class="muted small" id="sCodeHint" hidden>Tap the link in the email, or type the code from it here. On iPad, use the code if you added LiveBoard to your home screen.</p>`}
       ${user && state.meta.erasedAt ? `<div class="restorebox" role="alert"><p><b>This account's online notes were deleted</b> from another device. The notes on this device weren't uploaded again, and they stay here only.</p><div class="row"><button class="btn" data-export>Download a backup</button><button class="btn" id="sReupload">Upload them again as my account's notes</button></div></div>` : ""}
       ${user && !state.meta.erasedAt && blockedCount() ? `<div class="restorebox" role="alert"><p><b>${blockedCount()} item${blockedCount() === 1 ? "" : "s"} couldn't upload.</b> ${blockedReasons()} They are kept on this device and aren't counted as saved, so this device's copy can't be removed until they're fixed.</p><div class="row"><button class="btn" data-export>Download a backup</button>${[...state.blocked.values()].includes("refused") ? `<button class="btn" id="sRekey">Upload them as new copies</button>` : ""}</div></div>` : ""}
-      <label class="field">Your name (shown on class leaderboards)<input id="sName" maxlength="40" value="${esc(state.meta.displayName)}" placeholder="First name"></label>
+      <label class="field">Your name${role === "individual" ? "" : " (shown on class leaderboards)"}<input id="sName" maxlength="40" value="${esc(state.meta.displayName)}" placeholder="First name"></label>
     </section>
     <section><h3>Appearance</h3>
       <div class="seg themeseg" id="sTheme" role="radiogroup" aria-label="Theme">${(["system", "light", "dark"] as const).map(t => `<button role="radio" data-theme-pick="${t}" aria-checked="${themeChoice() === t}">${t === "system" ? "Match device" : t === "light" ? "Light" : "Dark"}</button>`).join("")}</div>
@@ -59,9 +52,9 @@ export async function openSettings(section?: string, onChanged?: () => void) {
     <section><h3>AI markers</h3>
       <p class="${ai.ai ? "" : "muted"}">${ai.ai ? `Connected${ai.model ? ` · ${esc(ai.model)}` : ""}.` : "Not connected on this server. Math, formatting, links and reminders still work; explaining, expanding and drafting need the AI. The setup guide in the README covers adding an Anthropic API key."}</p>
     </section>
-    <section id="classes"><h3>Courses and classes</h3>
-      <p class="muted">Share a course as a class to get a class leaderboard. Anyone with the code can join.</p>
-      <div class="clist">${courses.map(c => `<div class="crow" data-id="${c.id}"><span class="dot" style="background:${c.color}"></span><input class="cname" value="${esc(c.name)}" maxlength="32" aria-label="Course name">
+    <section id="classes" class="${school ? "" : "noclass"}"><h3>${school ? "Courses and classes" : "Notebooks"}</h3>
+      <p class="muted">${school ? "Share a course as a class to get a class leaderboard. Anyone with the code can join." : "Each notebook has its own colour on the dial. Rename them here."}</p>
+      <div class="clist">${courses.map(c => `<div class="crow" data-id="${c.id}"><span class="dot" style="background:${c.color}"></span><input class="cname" value="${esc(c.name)}" maxlength="32" aria-label="${school ? "Course" : "Notebook"} name">
         <label class="exam" title="Exam date, used by “remind me before the exam”"><span>Exam</span><input type="date" class="cexam" value="${esc(c.examDate || "")}" aria-label="Exam date for ${esc(c.name)}"></label>
         ${c.classCode ? `<span class="code" title="Class code">${esc(c.classCode)}</span>` : `<button class="btn small" data-share="${c.id}" ${user ? "" : "disabled title='Sign in first'"}>Share as class</button>`}</div>`).join("")}</div>
       <form class="row" id="sJoin"><input id="sClassCode" maxlength="8" placeholder="Class code" ${user ? "" : "disabled"}><select id="sJoinCourse" aria-label="Put this class on course" ${user ? "" : "disabled"}>${courses.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select><button class="btn" ${user ? "" : "disabled"}>Join class</button></form>
@@ -79,7 +72,8 @@ export async function openSettings(section?: string, onChanged?: () => void) {
     panel!.querySelectorAll("[data-theme-pick]").forEach(x => x.setAttribute("aria-checked", String(x === b)));
   });
   $("#sRole", panel)!.addEventListener("click", e => {
-    const to = (e.currentTarget as HTMLElement).dataset.to as Role;
+    const to = (e.target as HTMLElement).closest<HTMLElement>("[data-to]")?.dataset.to as Role | undefined;
+    if (!to || to === role) return;
     closeSettings();
     // the single-file preview holds only the student side; the classroom is a separate page with its own preview
     if (to === "teacher" && import.meta.env.VITE_ARTIFACT) { toast("This preview is the student side. The classroom (presentations and live classes) has its own preview.", 7000); return; }

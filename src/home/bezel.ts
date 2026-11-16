@@ -11,13 +11,17 @@
 
    Everything is drawn in the ink colour at low strength, with the selected item's colour only at the pointer.
    With reduced motion on, it draws once per change and nothing drifts. */
+import { getRole } from "../role";
 
 type Geo = { size: number; rF: number; hubR: number };
 type Mote = { a: number; depth: number; speed: number; r: number; alpha: number; off: number; kind: number; tilt: number };
 
 /* What the sprites are. Text ones are set in an italic serif like a textbook (grades in bold sans); the rest are
    drawn as a few strokes in a box of about ±1 unit. */
-const WORDS = ["π", "∑", "∫", "√x", "Δx", "x²", "∞", "θ", "λ", "E=mc²", "a²+b²", "F=ma", "H₂O", "dy/dx", "sin θ", "A+", "A", "B+", "98%", "≈", "f(x)", "μ", "CO₂", "½"];
+const SCHOOL = ["π", "∑", "∫", "√x", "Δx", "x²", "∞", "θ", "λ", "E=mc²", "a²+b²", "F=ma", "H₂O", "dy/dx", "sin θ", "A+", "A", "B+", "98%", "≈", "f(x)", "μ", "CO₂", "½"];
+// outside school the same orbit carries everyday marks: lists, dates, money, ideas (same count, so the layout is identical)
+const EVERYDAY = ["✓", "→", "#", "§", "&", "?", "!", "1.", "2.", "3.", "9:30", "Fri", "Q3", "to-do", "idea", "note", "$", "%", "≈", "@", "+1", "★", "A→B", "…"];
+const words = () => (getRole() === "individual" ? EVERYDAY : SCHOOL); // read when drawn: the choice can change after this file loads
 const GRADE = /^(A\+?|B\+|\d+%)$/;
 type Draw = (g: CanvasRenderingContext2D, u: number) => void;
 const SHAPES: Draw[] = [
@@ -83,7 +87,7 @@ export function startBezel(dial: HTMLElement, rot: () => number, geo: () => Geo)
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   // 30 sprites spread evenly round the track (each kind used about once), then 20 specks of plain dust (kind -1)
-  const kinds = WORDS.length + SHAPES.length, start = Math.floor(rnd() * kinds);
+  const kinds = SCHOOL.length + SHAPES.length, start = Math.floor(rnd() * kinds);
   motes = Array.from({ length: 50 }, (_, i) => i < 30
     ? { a: i * 12 + rnd() * 7, depth: rnd(), speed: 0.5 + rnd() * 1.6, r: 1, alpha: 0.3 + rnd() * 0.3, off: (rnd() - 0.5) * 2, kind: (start + i * 7) % kinds, tilt: (rnd() - 0.5) * 0.5 }
     : { a: rnd() * 360, depth: rnd(), speed: 0.5 + rnd() * 2.2, r: 0.7 + rnd() * 1.3, alpha: 0.14 + rnd() * 0.3, off: (rnd() - 0.5) * 2, kind: -1, tilt: 0 });
@@ -183,13 +187,13 @@ function frame(now: number) {
     g.save();
     g.translate(x, y);
     g.rotate(m.tilt + (still ? 0 : Math.sin(t * 0.5 + m.off * 7) * 0.1)); // they stay upright and rock a little; they never spin with the ring
-    if (m.kind < WORDS.length) {
-      const w = WORDS[m.kind];
+    if (m.kind < SCHOOL.length) {
+      const w = words()[m.kind];
       g.font = GRADE.test(w) ? `800 ${(12 * scale).toFixed(1)}px Inter, system-ui, sans-serif` : `italic 600 ${((w.length > 3 ? 11.5 : 15) * scale).toFixed(1)}px Georgia, "Times New Roman", serif`;
       g.fillText(w, 0, 0);
     } else {
       g.lineWidth = 1.25; g.lineCap = "round";
-      SHAPES[m.kind - WORDS.length](g, 7 * scale);
+      SHAPES[m.kind - SCHOOL.length](g, 7 * scale);
     }
     g.restore();
   }
