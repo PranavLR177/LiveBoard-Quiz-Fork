@@ -71,6 +71,9 @@ export interface Marker {
   deleted?: boolean;
 }
 
+/** A dated thing the person added to their calendar. Synced inside the profile and merged per item (src/deadlines.ts). */
+export interface Deadline { id: string; title: string; date: string; courseId?: string | null; done?: boolean; deleted?: boolean; updatedAt: number }
+
 export interface Meta {
   key: "meta";
   studyDays: string[];
@@ -79,6 +82,7 @@ export interface Meta {
   showTools: boolean;
   lastPull: number;
   displayName: string;
+  deadlines?: Deadline[];
   updatedAt: number;
   seeded: boolean;
   demoSeeded?: boolean;

@@ -310,6 +310,26 @@ const U1 = "11111111-1111-4111-8111-111111111111", U2 = "22222222-2222-4222-8222
   await G2.waitForTimeout(3000);
   ok(fake.all("notes", U7).some(r => /OFFLINE EDIT/.test(r.data.plain || "")), "re-uploading only happens when the student chooses it");
 
+  // deadlines: two devices on one account each add one before seeing the other's. Both must end up with both:
+  // they are merged one by one (here and on the server), never replaced as a list.
+  {
+    const U8 = "88888888-8888-4888-8888-888888888888";
+    const D1 = await device(), D2 = await device();
+    await signInAs(D1, U8); await signInAs(D2, U8);
+    const addDeadline = async (p, title) => { await p.click("#calBtn"); await p.waitForSelector(".calpop:not([hidden])"); await p.fill("#calTitle", title); await p.click("#calAdd button"); await p.waitForSelector(`.crowd:has-text("${title}")`); };
+    await addDeadline(D1, "From the laptop");
+    await addDeadline(D2, "From the iPad");
+    await D1.waitForTimeout(3500); await D2.waitForTimeout(500);
+    const onServer = () => ((fake.profiles.get(U8) || {}).deadlines || []).map(d => d.title).sort().join(" | ");
+    ok(onServer() === "From the iPad | From the laptop", "two devices each add a deadline without the other's: the account keeps both (" + onServer() + ")");
+    for (const p of [D1, D2]) { await p.reload(); await p.waitForSelector("#dial"); await p.waitForTimeout(1500); await p.click("#calBtn"); await p.waitForSelector(".calpop:not([hidden])"); }
+    const shows = (p, title) => p.waitForSelector(`.crowd:has-text("${title}")`, { timeout: 8000 }).then(() => true, () => false);
+    ok(await shows(D1, "From the iPad") && await shows(D2, "From the laptop"), "and each device then shows the other's deadline");
+    await D2.click('.crowd:has-text("From the laptop") .cdel'); await D2.waitForTimeout(3500);
+    await D1.reload(); await D1.waitForSelector("#dial"); await D1.waitForTimeout(1500); await D1.click("#calBtn"); await D1.waitForSelector(".calpop:not([hidden])");
+    ok(!(await D1.$('.crowd:has-text("From the laptop")')) && await D1.isVisible('.crowd:has-text("From the iPad")'), "deleting a deadline on one device removes it on the other, and nothing else");
+  }
+
   await b.close();
   console.log(errs.length ? "\nFAILURES:\n" + errs.join("\n") : "\nALL SYNC CHECKS PASS");
   process.exit(errs.length ? 1 : 0);
