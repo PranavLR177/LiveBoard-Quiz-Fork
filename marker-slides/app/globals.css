@@ -346,3 +346,9 @@ html,body{overflow-x:clip}
 .reel-card .deck-cover,.deck-peek-thumb{aspect-ratio:1.6}
 .reel{height:calc(var(--reel-w) * .625 + 64px)}
 .reel-turn{top:calc(var(--reel-w) * .31)}
+/* A thumbnail is a full-size slide drawn small, so the small-screen slide rules (squarer canvas, bigger type) must not
+   reach inside it; otherwise on a tablet or phone the picture and the title collide in every preview. */
+.slide-thumb-inner.slide-canvas{aspect-ratio:1.6!important}
+.slide-thumb-inner .slide-content h2{font-size:5.7cqw!important}
+.slide-thumb-inner .slide-body{font-size:2.15cqw!important}
+.slide-thumb-inner .slide-kicker{font-size:1.45cqw!important}
