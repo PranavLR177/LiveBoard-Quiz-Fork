@@ -11,6 +11,8 @@ import { pulse, recolor, startBezel, stopBezel } from "./bezel";
 import { openCram } from "./cram";
 import { onTheme } from "../theme";
 import { closeShelf, openShelf } from "./shelf";
+import { calendarChip, wireCalendar } from "./calendar";
+import { getRole } from "../role";
 
 /* The home screen: a morning strip over a spinning dial of notes arranged by when they were last opened.
    Recall plays inside the dial's center while the ring turns to each question's note. */
@@ -90,7 +92,8 @@ async function renderMorning() {
   const wk = [...Array(7)].map((_, i) => { const back = 6 - i, k = dayKey(Date.now() - back * DAY); return `<i class="${state.meta.studyDays.includes(k) ? "on" : ""} ${back === 0 ? "today" : ""}"></i>`; }).join("");
   const c = course(cid);
   const fc = forecast(), fcMax = Math.max(1, ...fc.map(d => d.n));
-  const exams = upcomingExams().slice(0, 2);
+  const student = getRole() === "student"; // exams, cram and classes are school things; everyone gets the calendar
+  const exams = student ? upcomingExams().slice(0, 2) : [];
   // The greeting and what's waiting are the heading. Everything else sits quietly either side of it on one line:
   // the streak to the left, exams and class to the right. Where you recall from is a word in the sentence.
   const scopeWord = { due: "everything due", night: "last night", week: "this week", unit: courseName(cid) }[state.meta.scope];
@@ -104,7 +107,7 @@ async function renderMorning() {
         <div class="note">${studiedOn(Date.now()) ? "Today is done. " : ""}Each time you get one right, it comes back later: a day, then a few days, then a week.</div></div></div></div>
     <div class="mhead"><h1 class="greet">${esc(greet)}</h1>
       <div class="msub"><span class="mline">${line}</span><button class="recallbtn" id="recallBtn" ${q.length ? "" : "disabled"}>${q.length ? `Start recall<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5L12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>` : "All caught up"}</button></div></div>
-    <div class="mside right">${exams.map((x, xi) => {
+    <div class="mside right">${calendarChip(pop === "cal")}${exams.map((x, xi) => {
       const left = x.counts[0] + x.counts[1];
       return `<div class="lbwrap ${xi ? "later" : ""}"><button class="chip examchip" data-popbtn="exam:${x.courseId}" aria-expanded="${pop === "exam:" + x.courseId}" title="${esc(x.name)} exam ${inDays(x.days)} · ${x.pct}% ready">${ring(x.pct, x.color)}<b>${x.days === 0 ? "Today" : x.days + "d"}</b><small>${esc(x.name)}</small></button>
       <div class="lbpop exampop" data-pop="exam:${x.courseId}" ${pop === "exam:" + x.courseId ? "" : "hidden"}><h3>${esc(x.name)} exam · ${inDays(x.days)}</h3>
@@ -113,17 +116,21 @@ async function renderMorning() {
           <button class="recallbtn cram" data-cram="${x.courseId}" data-tip="${left ? "Opens a cram sitting: your weak spots, plus extra questions written from your notes." : "Everything here is mastered. One more pass won't hurt."}">Cram for this exam <span class="cnt">${left || x.markers.length}</span></button>`
         : `<button class="recallbtn cram" data-cram="${x.courseId}" data-tip="No markers in ${esc(x.name)} yet. Cram can still write practice questions from the notes themselves.">Cram from your notes</button>`}</div></div>`;
     }).join("")}
-    <div class="lbwrap" id="lbWrap">${c?.classId && currentUser()
+    ${!student ? "" : `<div class="lbwrap" id="lbWrap">${c?.classId && currentUser()
       ? `<button class="chip lbchip" id="lbBtn" data-popbtn="lb" aria-expanded="${pop === "lb"}" aria-controls="lbPop"><span class="lbico" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="6" cy="5.5" r="2.4" fill="currentColor"/><path d="M1.6 13c.3-2.5 2-3.9 4.4-3.9s4.1 1.4 4.4 3.9z" fill="currentColor"/><circle cx="11.6" cy="6.2" r="1.8" fill="currentColor" opacity=".6"/><path d="M11 9.4c2 .1 3.2 1.3 3.5 3.6h-2.6" fill="currentColor" opacity=".6"/></svg></span><b id="lbRank">#–</b><small>in ${esc(c.name)}</small></button><div class="lbpop" id="lbPop" data-pop="lb" ${pop === "lb" ? "" : "hidden"}><h3>${esc(c.name)} · this week</h3><div id="lbRows">Loading…</div></div>`
-      : `<button class="chip lbchip" id="lbJoin" title="Join your class to see its leaderboard"><span class="lbico" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="6" cy="5.5" r="2.4" fill="currentColor"/><path d="M1.6 13c.3-2.5 2-3.9 4.4-3.9s4.1 1.4 4.4 3.9z" fill="currentColor"/><circle cx="11.6" cy="6.2" r="1.8" fill="currentColor" opacity=".6"/><path d="M11 9.4c2 .1 3.2 1.3 3.5 3.6h-2.6" fill="currentColor" opacity=".6"/></svg></span><small>${syncConfigured() ? "Join a class" : "Classes"}</small><svg class="lbgo" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`}</div></div>`;
+      : `<button class="chip lbchip" id="lbJoin" title="Join your class to see its leaderboard"><span class="lbico" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="6" cy="5.5" r="2.4" fill="currentColor"/><path d="M1.6 13c.3-2.5 2-3.9 4.4-3.9s4.1 1.4 4.4 3.9z" fill="currentColor"/><circle cx="11.6" cy="6.2" r="1.8" fill="currentColor" opacity=".6"/><path d="M11 9.4c2 .1 3.2 1.3 3.5 3.6h-2.6" fill="currentColor" opacity=".6"/></svg></span><small>${syncConfigured() ? "Join a class" : "Classes"}</small><svg class="lbgo" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`}</div>`}</div>`;
   el.querySelectorAll<HTMLButtonElement>(".scope button").forEach(b => b.onclick = async e => { e.stopPropagation(); pop = null; await putLocalMeta({ scope: b.dataset.s as "due" }); renderMorning(); });
   $("#recallBtn")!.onclick = () => startRecall();
-  el.querySelectorAll<HTMLButtonElement>("[data-popbtn]").forEach(b => b.onclick = e => { e.stopPropagation(); setPop(b.dataset.popbtn!); });
+  el.querySelectorAll<HTMLButtonElement>("[data-popbtn]").forEach(b => b.onclick = e => {
+    e.stopPropagation(); setPop(b.dataset.popbtn!);
+    if (pop === "cal") void renderMorning(); // drawn fresh each time it opens: a deadline may have arrived from another device
+  });
   // cramming is a longer sitting than daily recall, so it opens its own screen (cram.ts)
   el.querySelectorAll<HTMLButtonElement>("[data-cram]").forEach(b => b.onclick = () => {
     closePop();
     openCram({ courseId: b.dataset.cram!, openNote: (noteId, markerId) => { if (markerId) setPendingOpen(markerId); handlers?.openNote(noteId); }, onClose: () => { if (alive && $("#dial") && handlers) renderHome($("#stage")!, handlers, true); } });
   });
+  wireCalendar(el, renderMorning, (noteId, markerId) => { closePop(); if (markerId) setPendingOpen(markerId); handlers?.openNote(noteId); });
   const join = $("#lbJoin");
   if (join) join.onclick = () => handlers?.openSettings("classes");
   if ($("#lbBtn") && c?.classId) {
@@ -321,7 +328,7 @@ export function renderHome(stage: HTMLElement, h: NonNullable<typeof handlers>, 
       <div class="hub" id="hub"><div class="hubring" id="hubring" aria-hidden="true"></div><div class="hubticks" id="hubticks" aria-hidden="true"></div><svg class="hubprog" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="48" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg>
         <div class="info" id="info" aria-live="polite"></div>
         <div class="hubacts">
-          <button class="hbtn" data-act="import" title="Import lecture" aria-label="Import lecture"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/></svg><span>Import</span></button>
+          <button class="hbtn" data-act="import" title="${getRole() === "individual" ? "Import a file" : "Import lecture"}" aria-label="${getRole() === "individual" ? "Import a file" : "Import lecture"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/></svg><span>Import</span></button>
           <button class="hbtn" data-act="blank" title="Blank page" aria-label="Blank page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M12 12v6M9 15h6"/></svg><span>Blank page</span></button></div></div></div>
     <div id="infoSlot"></div>
     <div class="spinrow"><button class="spinbtn" id="spinPrev" aria-label="Spin toward newer notes">←</button><span class="spinhint"><span class="hov">Drag or scroll to move through time · select a folder to peek inside</span><span class="tch">Drag the dial to move through time · tap a folder to bring it up and open it</span></span><button class="spinbtn" id="spinNext" aria-label="Spin toward older notes">→</button></div>
@@ -360,7 +367,7 @@ export function renderHome(stage: HTMLElement, h: NonNullable<typeof handlers>, 
   }
   lastDrawn = null;
   if (R) $("#dial")!.classList.add("recall");
-  if (!items.length) $("#info")!.innerHTML = `<div class="infoin"><span class="pill" style="background:var(--g5)">Start here</span><div class="htitle">Import a lecture or start a blank page</div></div>`;
+  if (!items.length) $("#info")!.innerHTML = `<div class="infoin"><span class="pill" style="background:var(--g5)">Start here</span><div class="htitle">${getRole() === "individual" ? "Import a file or start a blank page" : "Import a lecture or start a blank page"}</div></div>`;
   cancelAnimationFrame(raf);
   if (items.length) { draw(); lastDrawn = rot; } // placed before the first frame, so a morph from the note page lands on the card
   raf = requestAnimationFrame(loop);

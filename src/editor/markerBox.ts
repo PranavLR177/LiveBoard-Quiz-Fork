@@ -6,6 +6,7 @@ import { course, courseName, liveMarkers, liveNotes, newMarker, newNote, note, p
 import type { Marker, MarkerType, Mastery, ThreadMsg } from "../types";
 import { $, agoLong, armButton, DAY, debounce, esc, toast } from "../util";
 import { repaintAll } from "./extensions";
+import { getRole } from "../role";
 import { applyFormat, contextAround, insertOutput, removeMarkerFromDoc, reattachAtEnd, restoreOutput, scrollToOutput } from "./ops";
 
 /* The marker workspace: everything a marker can do, in one large panel anchored to its passage.
@@ -454,7 +455,8 @@ function writtenHTML(m: Marker) {
 /** Shortcuts that fit the marked content: math gets steps and checks, definitions get flashcards, processes get steps, and so on. */
 export function contextActions(m: Marker): string[] {
   const t = m.text.trim();
-  if (!t) return ["Outline this topic", "Summarize this note", "Make a checklist from this note", "Quiz me on this note"];
+  const own = getRole() === "individual"; // outside school the everyday asks are tidying, deciding and remembering, not studying for a test
+  if (!t) return own ? ["Summarize this note", "Make a checklist from this note", "Pull out the action items", "Outline this topic"] : ["Outline this topic", "Summarize this note", "Make a checklist from this note", "Quiz me on this note"];
   const a: string[] = [];
   const mathy = /[=^√Σ∫≤≥±]|\d\s*[-+*/×÷]\s*\d|\b(equation|formula|derivative|integral|series|limit|matrix|probability)\b/i.test(t);
   const code = /[{};]\s*$|=>|\b(function|return|class|def|for\s*\(|while\s*\()\b/.test(t);
@@ -467,7 +469,8 @@ export function contextActions(m: Marker): string[] {
   if (/\b(because|causes?|leads? to|results? in|so that|therefore)\b/i.test(t)) a.push("Why does this happen?");
   if (/\?\s*$/.test(t)) a.push("Answer this");
   if (t.length > 280) a.push("Summarize in one sentence");
-  a.push("Explain this simpler", "Give me an example", "Quiz me on this");
+  if (own) a.push("Summarize this", "Pull out the action items", "Remind me tomorrow", "Explain this simpler");
+  else a.push("Explain this simpler", "Give me an example", "Quiz me on this");
   return [...new Set(a)].slice(0, 6);
 }
 

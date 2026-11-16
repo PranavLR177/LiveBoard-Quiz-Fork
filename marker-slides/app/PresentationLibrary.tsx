@@ -6,6 +6,7 @@ import { newLessons } from './newLessons';
 import { initialSlides } from './data';
 import { SlideFace,SlideThumb } from './SlideFace';
 import TopBar from './TopBar';
+import Reel,{ReelStrip,classColor} from './Reel';
 
 /* The teacher's home: every presentation in this browser.
 
@@ -68,6 +69,7 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
   const [order,setOrder]=useState<Order>('updated');
   const [filters,setFilters]=useState({className:'',unit:'',topic:''});
   const [search,setSearch]=useState('');
+  const [focus,setFocus]=useState(0);
   const [viewer,setViewer]=useState<Presentation|null>(null);
   const [viewerIndex,setViewerIndex]=useState(0);
   const [markerId,setMarkerId]=useState('');
@@ -149,6 +151,8 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
   const ordered=decks.filter(deck=>groups.every(([key])=>!filters[key]||deck[key]===filters[key])&&words.every(word=>[deck.title,deck.className,deck.unit,deck.topic].join(' ').toLowerCase().includes(word))).sort((a,b)=>
     order==='updated'?b.updated-a.updated:a[order].localeCompare(b[order],undefined,{numeric:true,sensitivity:'base'})||a.title.localeCompare(b.title));
   const examples=decks.filter(isExample);
+  const classes=[...new Set(decks.map(d=>d.className).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  const at=Math.max(0,Math.min(ordered.length-1,focus)),deck=ordered[at]; // the deck in front on the tray
   const exampleMarker=viewer?.sampleMarkers?.find(marker=>marker.id===markerId);
   const markerItems=(deck:Presentation)=>deck.lastSession ? deck.lastSession.questions : (deck.sampleMarkers||[]).map(m=>({...m,replies:m.response?[m.response]:[]}));
   const markers=markerDeck?markerItems(markerDeck).map((m,i)=>({...m,sequence:i})).sort((a,b)=>Number(!!a.resolved)-Number(!!b.resolved)||a.slide-b.slide||a.sequence-b.sequence):[];
@@ -165,29 +169,37 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
       </div>
     </header>
     {progress&&<p role="status">{progress}</p>}
-    <div className="library-search-row"><label className="library-search">Search<input type="search" value={search} placeholder="Title, class, unit or topic" onChange={event=>setSearch(event.target.value)}/></label><span role="status">{ordered.length} {ordered.length===1?"presentation":"presentations"}{ordered.length!==decks.length?` of ${decks.length}`:""}</span></div>
-    <div className="library-filters">
-      {facets.map(([key,label])=><label key={key}>{label}<select value={filters[key]} onChange={event=>setFilters({...filters,[key]:event.target.value})}><option value="">All</option>{[...new Set(decks.map(deck=>deck[key]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(value=><option key={value}>{value}</option>)}</select></label>)}
-      <label>Sort by<select value={order} onChange={event=>setOrder(event.target.value as Order)}><option value="updated">Most recent</option><option value="title">Title</option>{facets.map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
+    <div className="reel-bar">
+      <label className="library-search"><span className="sr-only">Search</span><input type="search" value={search} placeholder="Find a presentation: title, class, unit or topic" onChange={event=>{setSearch(event.target.value);setFocus(0)}}/></label>
+      {classes.length>1&&<div className="reel-classes" role="group" aria-label="Show one class">
+        <button aria-pressed={!filters.className} onClick={()=>{setFilters({...filters,className:''});setFocus(0)}}>All</button>
+        {classes.map(name=><button key={name} aria-pressed={filters.className===name} style={{'--cc':classColor(name)} as any} onClick={()=>{setFilters({...filters,className:filters.className===name?'':name});setFocus(0)}}><i/>{name}</button>)}
+      </div>}
     </div>
     {error&&<p role="alert">{error}</p>}
-    {loading?<p>Loading presentations…</p>:ordered.length===0?<p className="library-empty">{decks.length?'No presentations match.':'Nothing here yet. Import the slides you already teach from, or start a new presentation.'}</p>:<ul className="deck-grid">{ordered.map(deck=><li key={deck.id}>
-      <a className="deck-cover" aria-label={'Open presentation: '+deck.title} href={editor(deck.id)}>
-        {deck.slides[0]&&<SlideThumb slide={deck.slides[0]} renderVisual={renderVisual}/>}
-        <span className="deck-count">{deck.slides.length} slide{deck.slides.length===1?'':'s'}</span>{isExample(deck)&&<span className="deck-example">Example</span>}
-      </a>
-      <div className="deck-details"><h2><a href={editor(deck.id)}>{deck.title}</a></h2><p>{[deck.className,deck.unit,deck.topic].filter(Boolean).join(' · ')||'No class set'}</p>
-      {deck.lastSession&&<button className="deck-session" onClick={()=>setReview(deck)}><b>{deck.lastSession.total}</b> question{deck.lastSession.total===1?'':'s'} from class{deck.lastSession.open?<> · <em>{deck.lastSession.open} open</em></>:' · all answered'}<small>{ago(deck.lastSession.at)} · Review class →</small></button>}
-      <p className="deck-edited" title={date(deck.updated)}>{deck.updated?`Last edited ${new Date(deck.updated).toLocaleDateString()}`:"Not edited yet"}</p><div className="deck-actions"><a className="deck-open" href={editor(deck.id)}>Open</a><button onClick={()=>{setMarkerDeck(deck);setMarkerIndex(0)}}>Markers · {markerItems(deck).length}</button>
-        <span className="deck-menu"><button aria-label={'More for '+deck.title} aria-haspopup="menu" aria-expanded={menu===deck.id} onClick={()=>setMenu(menu===deck.id?'':deck.id)}>•••</button>
+    {loading?<p>Loading presentations…</p>:<>
+      <Reel decks={ordered} focus={at} onFocus={setFocus} onOpen={deck=>location.assign(editor(deck.id))} renderVisual={renderVisual} isExample={isExample}
+        empty={<p className="library-empty">{decks.length?'No presentations match.':'Nothing here yet. Import the slides you already teach from, or start a new presentation.'}</p>}/>
+      {deck&&<section className="reel-hub" aria-live="polite" style={{'--cc':classColor(deck.className)} as any}>
+        <p className="reel-meta"><i/>{[deck.className,deck.unit,deck.topic].filter(Boolean).join(' · ')||'No class set'}</p>
+        <h2>{deck.title}</h2>
+        <div className="deck-actions">
+          <a className="deck-open primary" href={editor(deck.id)}>Open<small>{deck.slides.length} slide{deck.slides.length===1?'':'s'}</small></a>
+          <button onClick={()=>{setMarkerDeck(deck);setMarkerIndex(0)}}>Markers · {markerItems(deck).length}</button>
+          <span className="deck-menu"><button aria-label={'More for '+deck.title} aria-haspopup="menu" aria-expanded={menu===deck.id} onClick={()=>setMenu(menu===deck.id?'':deck.id)}>•••</button>
           {menu===deck.id&&<span className="deck-menu-list" role="menu">
             <button role="menuitem" onClick={()=>{setMenu('');setInfo(deck)}}>Presentation info</button>
             <button role="menuitem" onClick={()=>{setMenu('');setEdit(deck)}}>Title and class…</button>
             <button role="menuitem" disabled={busy} onClick={()=>{setMenu('');void update(async()=>{await savePresentation({...deck,id:crypto.randomUUID(),title:deck.title+' (copy)',updated:Date.now(),lastSession:undefined});setFilters({className:'',unit:'',topic:''})})}}>Duplicate</button>
             <button role="menuitem" onClick={()=>{setMenu('');download(fileName(deck.title)+'.liveboard.json',JSON.stringify({title:deck.title,slides:deck.slides},null,2),'application/json')}}>Save as a file</button>
             <button role="menuitem" className="deck-delete" onClick={()=>{setMenu('');setRemove(deck)}}>Delete…</button>
-          </span>}</span></div></div>
-    </li>)}</ul>}
+          </span>}</span>
+        </div>
+        {deck.lastSession&&<button className="deck-session" onClick={()=>setReview(deck)}><b>{deck.lastSession.total}</b> question{deck.lastSession.total===1?'':'s'} from class{deck.lastSession.open?<> · <em>{deck.lastSession.open} open</em></>:' · all answered'}<small>{ago(deck.lastSession.at)} · Review class →</small></button>}
+        <p className="deck-edited" title={date(deck.updated)}>{deck.updated?`Last edited ${new Date(deck.updated).toLocaleDateString()}`:"Not edited yet"}</p>
+      </section>}
+      <ReelStrip decks={ordered} focus={at} onFocus={setFocus}/>
+    </>}
     {examples.length>0&&decks.length>examples.length&&<p className="library-examples">The {examples.length} example{examples.length===1?'':'s'} can go once you have your own. <button disabled={busy} onClick={()=>update(async()=>{for(const deck of examples)await deletePresentation(deck.id)})}>Remove examples</button></p>}
 
     {info&&<div className="modal-backdrop" onClick={()=>setInfo(null)}><section className="modal" role="dialog" aria-modal="true" aria-label="Presentation info" onClick={e=>e.stopPropagation()}><button className="modal-close" aria-label="Close information" onClick={()=>setInfo(null)}>×</button><span className="eyebrow">PRESENTATION INFO</span><h2>{info.title}</h2><dl className="presentation-info"><dt>Created</dt><dd>{date(info.created)}</dd><dt>Last edited</dt><dd>{date(info.updated)}</dd><dt>Slides</dt><dd>{info.slides.length}</dd><dt>Markers</dt><dd>{markerItems(info).length}</dd>{groups.map(([key,label])=><div key={key}><dt>{label}</dt><dd>{info[key]||'Not set'}</dd></div>)}<dt>Last live class</dt><dd>{info.lastSession?date(info.lastSession.at):'Not taught live yet'}</dd></dl></section></div>}

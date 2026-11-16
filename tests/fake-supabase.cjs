@@ -45,7 +45,10 @@ class FakeSupabase {
       if (url.pathname === "/rest/v1/rpc/push_profile") {
         const { p_data, p_gen } = JSON.parse(req.postData() || "{}");
         if (p_gen !== this.genOf(uid)) return json({ status: "erased" });
-        this.profiles.set(uid, p_data);
+        // like the real push_profile: deadlines merge per item, the copy changed last wins
+        const by = new Map();
+        for (const d of [...((this.profiles.get(uid) || {}).deadlines || []), ...(Array.isArray(p_data.deadlines) ? p_data.deadlines : [])]) { const have = by.get(d.id); if (!have || (d.updatedAt || 0) > (have.updatedAt || 0)) by.set(d.id, d); }
+        this.profiles.set(uid, { ...p_data, deadlines: [...by.values()].sort((x, y) => x.date.localeCompare(y.date) || x.id.localeCompare(y.id)) });
         return json({ status: "ok" });
       }
       if (url.pathname === "/rest/v1/rpc/push_rows") {

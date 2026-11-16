@@ -1,6 +1,7 @@
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import Dexie from "dexie";
-import { ack, ANON_DB, applyRemote, applyRemoteMeta, block, blockAll, blockedCount, db, dbNameFor, type Kind, openDb, outboxRows, pendingCount, putCourse, putLocalMeta, putMarker, putNote, requeueAll, setWriteHook, state, deleteLocalDb } from "./store";
+import { cleanDeadlines, mergeDeadlines, sameDeadlines } from "./deadlines";
+import { ack, ANON_DB, applyRemote, applyRemoteMeta, block, blockAll, blockedCount, db, dbNameFor, type Kind, openDb, outboxRows, pendingCount, putCourse, putLocalMeta, putMarker, putMeta, putNote, requeueAll, setWriteHook, state, deleteLocalDb } from "./store";
 import type { Course, Marker, Meta, Note, ThreadMsg } from "./types";
 import { $, uid } from "./util";
 
@@ -173,7 +174,7 @@ async function doPush(): Promise<boolean> {
     const meta = rows.find(r => r.kind === "meta");
     if (meta && !suspended) {
       const m = state.meta;
-      const { data, error } = await sb!.rpc("push_profile", { p_data: { studyDays: m.studyDays, points: m.points, displayName: m.displayName }, p_gen: m.gen });
+      const { data, error } = await sb!.rpc("push_profile", { p_data: { studyDays: m.studyDays, points: m.points, displayName: m.displayName, deadlines: m.deadlines || [] }, p_gen: m.gen });
       if (error) throw error;
       if ((data as { status?: string } | null)?.status === "erased") { await accountErased(); return false; }
       if ((data as { status?: string } | null)?.status === "ok") await ack("meta", "meta", meta.ver);
@@ -316,7 +317,11 @@ export async function pull(): Promise<boolean> {
     }
     const { data: prof } = await sb!.from("profiles").select("data").maybeSingle();
     if (prof?.data) {
-      const d = prof.data as { studyDays?: unknown; points?: unknown; displayName?: unknown };
+      const d = prof.data as { studyDays?: unknown; points?: unknown; displayName?: unknown; deadlines?: unknown };
+      // deadlines merge one by one (newest copy of each wins); if this device holds anything newer, it goes back up
+      const mine = state.meta.deadlines || [], theirs = mergeDeadlines([], cleanDeadlines(d.deadlines)), merged = mergeDeadlines(mine, theirs);
+      if (!sameDeadlines(merged, theirs)) await putMeta({ deadlines: merged });
+      else if (!sameDeadlines(merged, mine)) await applyRemoteMeta({ deadlines: merged });
       await applyRemoteMeta({
         studyDays: [...new Set([...state.meta.studyDays, ...(Array.isArray(d.studyDays) ? d.studyDays.filter(x => typeof x === "string" && /^\d{4}-\d\d-\d\d$/.test(x)) : [])])],
         points: Math.max(state.meta.points, Number(d.points) || 0),

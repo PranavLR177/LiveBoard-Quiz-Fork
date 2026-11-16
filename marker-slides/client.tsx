@@ -4,6 +4,7 @@ import "./app/globals.css";
 import { initTheme, isDark, onTheme } from "../src/theme";
 import { supabaseRooms } from "../src/classroom/rooms";
 import { setRoomsBackend } from "./app/roomsApi";
+import { installDevSwitch } from "../src/devSwitch";
 
 // The classroom is bundled into LiveBoard: it shares the notes side's origin, storage, light/dark choice and server.
 // LiveBoard leaves data-theme unset when following the device; the classroom's stylesheet wants it spelled out.
@@ -18,4 +19,5 @@ if (!params.has("view") && !params.has("room") && !params.has("deck")) {
   params.set("view", "library");
   history.replaceState(null, "", location.pathname + "?" + params);
 }
+installDevSwitch(); // development only: remove before launch (see src/devSwitch.ts)
 createRoot(document.getElementById("classroom-root")!).render(<Page />);

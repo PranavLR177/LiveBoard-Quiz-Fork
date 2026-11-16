@@ -27,7 +27,7 @@ const tokens = p => p.evaluate(() => { const c = getComputedStyle(document.docum
 
   // ---- a teacher's home, and one look across both sides
   const t = await open("teacher", 1440);
-  await t.goto(BASE + "/"); await t.waitForSelector(".deck-grid li");
+  await t.goto(BASE + "/"); await t.waitForSelector(".reel-card");
   const home = new URL(t.url());
   ok(home.origin === new URL(BASE).origin && home.pathname === "/classroom.html" && home.search === "?view=library", "a teacher opening LiveBoard lands on Presentations, on LiveBoard's own address, with nothing extra in the link");
   ok(await t.isVisible(".lb-top .lb-brand") && await t.isVisible('.lb-top a[aria-current="page"]:has-text("Presentations")') && await t.isVisible('.lb-top a:has-text("Worksheets")') && await t.isVisible('.lb-top a:has-text("Student notes")'), "the classroom has LiveBoard's top bar: wordmark, Presentations, Worksheets, light/dark, Student notes");
@@ -46,13 +46,31 @@ const tokens = p => p.evaluate(() => { const c = getComputedStyle(document.docum
   const lightNotes = await tokens(t);
   ok(darkClass === darkNotes, "dark mode uses the same colours on both sides\n       classroom " + darkClass + "\n       notes     " + darkNotes);
   ok(lightClass === lightNotes, "light mode uses the same colours on both sides\n       classroom " + lightClass + "\n       notes     " + lightNotes);
-  await t.click("#presentationsLink"); await t.waitForSelector(".deck-grid li");
+  await t.click("#presentationsLink"); await t.waitForSelector(".reel-card");
   ok(await t.evaluate(() => document.documentElement.dataset.theme) === "light", "and the choice made on the notes side carries back to the classroom");
   await shot(t, "library-light");
 
+  // ---- the tray: one deck in front, the rest behind it; arrow keys, the strip and a tap all turn it
+  const front = () => t.$eval(".reel-card.front .deck-cover", e => e.getAttribute("aria-label"));
+  const first = await front(), count = (await t.$$(".reel-strip button")).length;
+  ok(count >= 2 && (await t.textContent(".reel-hub h2")) && first.includes(await t.textContent(".reel-hub h2")), "the teacher's home is a tray of presentations with one in front and its actions under it");
+  await t.focus(".reel"); await t.keyboard.press("ArrowRight"); await t.waitForTimeout(100);
+  const second = await front();
+  ok(second !== first && second.includes(await t.textContent(".reel-hub h2")) && /2 of/.test(await t.textContent(".reel-strip span")), "the right arrow turns the tray to the next presentation");
+  await t.click(".reel-strip button >> nth=0"); await t.waitForTimeout(100);
+  ok(await front() === first, "tapping a tick on the strip brings that presentation round");
+  await t.fill(".reel-bar input", "zzzz no such deck");
+  ok(await t.isVisible(".library-empty"), "searching for something that isn't there says so");
+  await t.fill(".reel-bar input", ""); await t.waitForSelector(".reel-card.front");
+
   // ---- open a deck and start a live class
   await t.click(".deck-open"); await t.waitForSelector(".slide-canvas");
-  ok(!(await t.$(".topbar")) && await t.isVisible(".lesson-heading .crumb") && /Saved on this device|not saved yet/.test(await t.textContent(".lb-status")), "the editor sits under the same top bar, with where the deck is saved and a breadcrumb back");
+  ok(!(await t.$(".topbar")) && /Saved on this device|not saved yet/.test(await t.textContent(".lb-status")), "the editor sits under the same top bar, which says where the deck is saved");
+  const backBox = await t.locator(".lb-back").boundingBox();
+  ok(await t.isVisible('.lb-back:has-text("All presentations")') && backBox.x < 400 && !(await t.$(".crumb")), "inside a presentation the way home is one solid button beside the wordmark");
+  await t.click(".lb-back"); await t.waitForSelector(".reel-card");
+  ok(new URL(t.url()).search === "?view=library", "and it goes back to the presentations home");
+  await t.click(".deck-open"); await t.waitForSelector(".slide-canvas");
   await t.click("text=Start live lesson"); await t.waitForSelector(".room-code", { timeout: 10000 });
   const code = (await t.textContent(".room-code")).trim();
   ok(/^[0-9A-F]{8}$/.test(code) && rooms.rooms.has(code) && rooms.calls.includes("room_create"), "Start live lesson makes the room on LiveBoard's own server (no second site)");
@@ -100,7 +118,7 @@ const tokens = p => p.evaluate(() => { const c = getComputedStyle(document.docum
   ok(await s.evaluate(() => JSON.parse(localStorage.getItem("lb-class-notes") || "[]").length) === 1, "Add to my notes hands the questions to the notes side");
 
   // ---- ending the class
-  await t.click("text=End class"); await t.waitForSelector(".deck-grid li", { timeout: 10000 });
+  await t.click("text=End class"); await t.waitForSelector(".reel-card", { timeout: 10000 });
   ok(rooms.rooms.size === 0, "End class deletes the room, its slides and its markers from the server");
   await s.waitForSelector(".class-ended", { timeout: 9000 }).then(() => ok(true, "the student is told the class has ended and keeps what's on screen"), () => ok(false, "the student is told the class has ended and keeps what's on screen"));
   await s.click('.class-ended a'); await s.waitForSelector(".fcard", { timeout: 15000 });

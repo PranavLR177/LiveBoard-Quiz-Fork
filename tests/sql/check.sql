@@ -106,6 +106,17 @@ select public.push_rows('notes', '[{"id":"old1","base_rev":0,"data":{"title":"re
 select public.push_profile('{"points":5}', 0)->>'status' = 'erased' as profile_refused \gset
 \if :profile_refused \else \echo 'FAIL stale profile write' \quit \endif
 select (public.sync_state()->>'gen')::int = 1 as gen_visible \gset
+-- deadlines in the profile merge per item: a second device that never saw the first one's deadline can't erase it,
+-- the copy changed last wins, and a stale write of points or name still doesn't drop them
+select public.push_profile('{"points":1,"deadlines":[{"id":"d1","title":"Essay","date":"2027-01-10","updatedAt":100}]}', 1)->>'status' = 'ok' as dl_a \gset
+select public.push_profile('{"points":2,"deadlines":[{"id":"d2","title":"Rent","date":"2027-01-01","updatedAt":200},{"id":"d1","title":"Essay (old copy)","date":"2027-01-10","updatedAt":50},{"id":"bad","date":"soon"}]}', 1)->>'status' = 'ok' as dl_b \gset
+select public.push_profile('{"points":3}', 1)->>'status' = 'ok' as dl_c \gset
+select (select data from public.profiles where user_id = '00000000-0000-0000-0000-00000000000a') as prof \gset
+select jsonb_array_length(:'prof'::jsonb->'deadlines') = 2 and :'prof'::jsonb->'deadlines'->0->>'id' = 'd2' and :'prof'::jsonb->'deadlines'->1->>'title' = 'Essay' and (:'prof'::jsonb->>'points')::int = 3 as deadlines_merged \gset
+\if :deadlines_merged \else \echo 'FAIL deadlines were replaced instead of merged' \quit \endif
+select public.push_profile(jsonb_build_object('deadlines', jsonb_build_array(jsonb_build_object('id','d1','title','Essay','date','2027-01-10','updatedAt',(extract(epoch from now())*1000)::bigint,'deleted',true))), 1)->>'status' = 'ok' as dl_d \gset
+select (select data->'deadlines'->1->>'deleted' from public.profiles where user_id = '00000000-0000-0000-0000-00000000000a') = 'true' as delete_kept \gset
+\if :delete_kept \else \echo 'FAIL a deleted deadline did not stay deleted' \quit \endif
 select public.push_rows('notes', '[{"id":"new1","base_rev":0,"data":{"title":"fresh"},"updated_at":9}]', 1)->0->>'status' = 'ok' as new_gen_ok \gset
 \if :new_gen_ok \else \echo 'FAIL current generation refused' \quit \endif
 reset role;

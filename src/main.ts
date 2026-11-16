@@ -14,6 +14,7 @@ import { newMarker } from "./store";
 import { renderTeacher } from "./teacher/workspace";
 import { mdToNoteHtml } from "./md";
 import { getRole, pickRole, roleFromAddress, setRole } from "./role";
+import { installDevSwitch } from "./devSwitch";
 
 const stage = () => $("#stage")!;
 let currentNote: string | null = null;
@@ -201,6 +202,7 @@ async function takeClassNotes() {
 async function boot() {
   // Students get the notes app, teachers the presentations side; the choice is made once per device.
   roleFromAddress();
+  installDevSwitch(); // development only: remove before launch (see src/devSwitch.ts)
   let role = getRole();
   const picked = !role;
   if (role) document.documentElement.dataset.role = role;

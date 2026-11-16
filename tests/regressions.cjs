@@ -483,35 +483,78 @@ const BASE = process.env.BASE || "http://localhost:4173";
     await c3.close();
   }
 
-  // student or teacher: chosen once per device; students stay in the notes app, teachers go to the presentations side
+  // who LiveBoard is for: chosen once per device on the welcome dial. Individuals and students get the notes app
+  // (students with class things), teachers the classroom.
   {
     const c4 = await b.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: "block" });
     const r = await c4.newPage();
     r.on("pageerror", e => errs.push("pageerror: " + e.message));
     await r.route(/fonts\.(googleapis|gstatic)\.com/, x => x.abort());
     await r.route("**/api/marker", x => x.fulfill({ json: { ai: false } }));
+    const role = () => r.evaluate(() => localStorage.getItem("liveboard-role"));
+    const picked = () => r.$eval('.wopt[aria-checked="true"]', e => e.textContent.trim());
 
     await r.goto(BASE);
-    await r.waitForSelector(".rolepick");
-    ok(!(await r.$(".fcard")), "on first open, the role choice comes before any notes are shown");
-    await r.click('.rolechoice[data-role="student"]');
+    await r.waitForSelector(".welcome");
+    ok(!(await r.$(".fcard")) && await picked() === "Just me" && (await r.$$(".wopt")).length === 2, "the first screen is the welcome dial, before any notes: Just me or Education");
+    await r.keyboard.press("ArrowRight");
+    ok(await picked() === "Education" && /Next/.test(await r.textContent("#wGo")), "the arrow keys turn the dial; Education leads on to a second choice");
+    await r.click("#wGo");
+    await r.waitForFunction(() => document.querySelector('.wopt[aria-checked="true"]')?.textContent.trim() === "Student");
+    ok(/Teacher/.test(await r.textContent("#wRing")) && await r.isVisible("#wBack"), "Education turns the dial over to Student or Teacher, with a way back");
+    await r.click("#wBack");
+    ok(await picked() === "Education", "Back returns to the first choice");
+    // dragging the ring half a turn brings the other choice to the pointer
+    const box = await r.locator("#wDial").boundingBox(), cx = box.x + box.width / 2, cy = box.y + box.height / 2, rad = box.width / 2 - 34;
+    await r.mouse.move(cx + rad, cy); await r.mouse.down();
+    for (let i = 1; i <= 12; i++) { const a = Math.PI * i / 12; await r.mouse.move(cx + rad * Math.cos(a), cy + rad * Math.sin(a)); }
+    await r.mouse.up(); await r.waitForTimeout(200);
+    ok(await picked() === "Just me", "dragging the ring turns it and it settles on the nearest choice");
+    await r.click("#wGo");
     await r.waitForSelector(".fcard");
-    ok(!(await r.$(".rolepick")) && await r.evaluate(() => localStorage.getItem("liveboard-role")) === "student", "choosing student opens the notes and remembers it");
-    ok(!(await r.isVisible("#teacherLink")) && !(await r.isVisible("#presentationsLink")) && await r.isVisible("#discussionJoin"), "students see Join class, not the teaching tools");
+    ok(await role() === "individual" && !(await r.$(".welcome")), "choosing Just me opens the notes and remembers it");
+    ok(!(await r.isVisible("#discussionJoin")) && !(await r.$("#lbWrap")) && !(await r.$(".examchip")) && !(await r.isVisible("#teacherLink")), "an individual has no Join class, class or exam chips, or teaching tools");
+    ok(/Personal/i.test(await r.textContent(".fcard")), "their first notebook is called Personal, not a course");
+    // the calendar: add a deadline, tick it, and it is still there after a reload
+    await r.click("#calBtn"); await r.waitForSelector(".calpop:not([hidden])");
+    await r.fill("#calTitle", "Renew passport"); await r.click("#calAdd button");
+    await r.waitForSelector('.crowd:has-text("Renew passport")');
+    ok(/Today/.test(await r.textContent("#calBtn")) && (await r.$$(".cday.today .cdots i")).length === 1, "a deadline added in the calendar shows on the chip and as a dot on its day");
     await r.reload(); await r.waitForSelector(".fcard");
-    ok(!(await r.$(".rolepick")), "the choice isn't asked again");
+    await r.click("#calBtn");
+    ok(await r.isVisible('.crowd:has-text("Renew passport")'), "deadlines are saved on the device");
+    await r.click('.crowd:has-text("Renew passport") input'); await r.waitForSelector('.crowd:has-text("Renew passport")', { state: "detached" });
+    ok(!/Today/.test(await r.textContent("#calBtn")), "ticking a deadline off takes it off the chip and out of Coming up");
+    await r.click(".cday.today"); await r.waitForSelector(".crowd.done");
+    ok(await r.isVisible('.crowd.done:has-text("Renew passport")'), "tapping its day still shows it, ticked, so it can be unticked");
+    await r.click("#settingsBtn"); await r.waitForSelector("#sRole");
+    ok(/Notebooks/.test(await r.textContent("#classes h3")) && !(await r.isVisible("#classes .exam")) && !(await r.isVisible("#sJoin")), "Settings calls them notebooks for an individual, with no exam dates or class codes");
+    await r.click('#sRole [data-to="student"]'); await r.waitForSelector("#lbWrap");
+    ok(await role() === "student" && await r.isVisible("#discussionJoin") && await r.isVisible("#calBtn"), "switching to Student in Settings brings back the class features and keeps the calendar");
+    await r.reload(); await r.waitForSelector(".fcard");
+    ok(!(await r.$(".welcome")), "the choice isn't asked again");
     await r.click("#settingsBtn"); await r.waitForSelector("#sRole");
     const nav = r.waitForURL(u => u.pathname.endsWith('/classroom.html'), { timeout: 8000 });
-    await r.click("#sRole");
-    await nav.then(() => ok(true, "Switch to teacher in Settings opens the bundled classroom"), () => ok(false, "Switch to teacher in Settings opens the bundled classroom"));
+    await r.click('#sRole [data-to="teacher"]');
+    await nav.then(() => ok(true, "switching to Teacher in Settings opens the classroom"), () => ok(false, "switching to Teacher in Settings opens the classroom"));
     await r.waitForSelector(".lb-top");
     ok(new URL(r.url()).search === "?view=library" && await r.isVisible('.lb-top a:has-text("Student notes")'), "the classroom link carries only which screen to open, and the classroom offers the way back to student notes");
     await r.goto(BASE);
     await r.waitForURL(u => u.pathname.endsWith('/classroom.html'), { timeout: 8000 }).then(() => ok(true, "a teacher opening LiveBoard lands on presentations"), () => ok(false, "a teacher opening LiveBoard lands on presentations"));
     await r.goto(BASE + "#teacher"); await r.waitForTimeout(800);
     ok(new URL(r.url()).origin === new URL(BASE).origin && await r.isVisible("#teacherLink") && await r.isVisible("#presentationsLink") && !(await r.isVisible("#discussionJoin")), "a teacher can still open Worksheets here, with teaching tools in the header");
+    // the developer switch (temporary): flips between the three sides from any screen
+    await r.click("#devDot");
+    await r.click('#devSwitch [data-dev="individual"]'); await r.waitForSelector(".fcard");
+    ok(await role() === "individual" && !(await r.isVisible("#discussionJoin")), "the developer switch flips this device to Just me and opens that side");
+    await r.click("#devDot");
+    await Promise.all([r.waitForURL(u => u.pathname.endsWith('/classroom.html')), r.click('#devSwitch [data-dev="teacher"]')]);
+    await r.waitForSelector("#devSwitch");
+    ok(await role() === "teacher", "and to Teacher, where the switch is there too");
+    await r.click("#devDot"); await r.click('#devSwitch [data-dev="welcome"]'); await r.waitForSelector(".welcome");
+    ok(await role() === null, "its Welcome button forgets the choice and shows the welcome dial again");
     await r.goto(BASE + "?as=student"); await r.waitForSelector(".fcard");
-    ok(await r.evaluate(() => localStorage.getItem("liveboard-role")) === "student" && !new URL(r.url()).searchParams.has("as"), "the presentations side's Switch to student notes link sets the role and tidies the address");
+    ok(await role() === "student" && !new URL(r.url()).searchParams.has("as"), "a ?as=student link sets the role and tidies the address");
     await c4.close();
   }
 

@@ -1507,15 +1507,74 @@ html.cramming { overflow: hidden; }
 /* Student or teacher: chosen once per device (src/role.ts). Students see study tools; teachers see their teaching tools. */
 :root:not([data-role="teacher"]) .teacheronly, :root[data-role="teacher"] .studentonly { display: none !important; }
 .top a.teacheronly { text-decoration: none; }
-.rolecard:focus { outline: none; }
-.rolepick { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 16px; background: var(--desk); }
-.rolecard { width: min(560px, 100%); text-align: center; }
-.rolecard h1 { font: 700 clamp(26px, 5vw, 36px) var(--display); margin: 0 0 6px; color: var(--ink); }
-.rolechoices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 22px 0 14px; }
-.rolechoice { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; text-align: left; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); color: var(--ink); font: inherit; cursor: pointer; min-height: 120px; }
-.rolechoice b { font: 700 18px var(--display); }
-.rolechoice span { color: var(--muted); font-size: 14px; line-height: 1.4; }
-.rolechoice:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-@media (hover: hover) { .rolechoice:hover { border-color: var(--ink); } }
-@media (max-width: 480px) { .rolechoices { grid-template-columns: 1fr; } .rolechoice { min-height: 0; } }
 .linkbtn { border: 0; background: none; padding: 0; font: inherit; color: var(--ink); text-decoration: underline; cursor: pointer; }
+
+/* ---------- the welcome dial (src/role.ts): the first screen is a dial, like the home it leads to ---------- */
+.welcome { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 16px; overflow: auto; background: var(--desk);
+  background-image: radial-gradient(60vmax 50vmax at 0% 0%, color-mix(in srgb, var(--g7) var(--wash), transparent), transparent 70%), radial-gradient(60vmax 50vmax at 100% 100%, color-mix(in srgb, var(--g4) var(--wash), transparent), transparent 70%);
+  transition: opacity .25s ease; --wc: var(--g5); }
+.welcome.leaving { opacity: 0; }
+.welcome.leaving .wdial { transform: scale(1.5); }
+.wcard { width: min(640px, 100%); text-align: center; outline: none; }
+.whead h1 { font: 700 clamp(26px, 5vw, 38px) var(--display); letter-spacing: -.02em; margin: 0 0 4px; color: var(--ink); }
+.whead p { margin: 0; }
+.wdial { --size: min(86vw, 54vh, 480px); --wr: calc(var(--size) / 2 - 34px); position: relative; width: var(--size); height: var(--size); margin: 26px auto 18px; transition: transform .28s ease; touch-action: none; }
+.wdial::before { content: ""; position: absolute; inset: 22px; border-radius: 50%; padding: 5px; background: conic-gradient(from 0deg, var(--g1), var(--g2), var(--g3), var(--g4), var(--g5), var(--g6), var(--g7), var(--g1));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); opacity: .55; }
+.wdial::after { content: ""; position: absolute; inset: 50px; border-radius: 50%; border: 1px dashed var(--line); }
+.wpointer { position: absolute; left: 50%; top: -4px; width: 0; height: 0; margin-left: -9px; border: 9px solid transparent; border-top: 12px solid var(--wc); z-index: 3; transition: border-top-color .3s; }
+.wring { position: absolute; inset: 0; pointer-events: none; transition: transform .7s cubic-bezier(.3, 1.35, .45, 1); z-index: 2; }
+.wopt { pointer-events: auto; position: absolute; left: 50%; top: 50%; width: 104px; height: 68px; margin: -34px 0 0 -52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1.5px solid var(--line); border-radius: 18px;
+  background: var(--paper); color: var(--muted); font: 600 13px var(--display); cursor: grab; transition: transform .7s cubic-bezier(.3, 1.35, .45, 1), border-color .2s, color .2s, box-shadow .2s; box-shadow: var(--shadow); touch-action: none; }
+.wring[style*="transition: none"] .wopt { transition: border-color .2s, color .2s; }
+.wopt svg { width: 22px; height: 22px; }
+.wopt[aria-checked="true"] { border-color: var(--oc); color: var(--ink); box-shadow: 0 0 0 4px color-mix(in srgb, var(--oc) 22%, transparent), var(--shadow); }
+.wopt[aria-checked="true"] svg { color: var(--oc); }
+.wopt:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.whub { position: absolute; inset: 84px; border-radius: 50%; background: var(--paper); border: 1px solid var(--line); box-shadow: var(--shadow); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 12% 11%; z-index: 1; }
+.wname { font: 700 clamp(20px, 4.4vw, 28px) var(--display); letter-spacing: -.02em; color: var(--ink); }
+.wblurb { color: var(--muted); font-size: 14px; line-height: 1.35; max-width: 22ch; }
+.wgo { margin-top: 8px; border-radius: 99px; padding: 9px 22px; white-space: nowrap; }
+.wjoin { font-size: 12px; color: var(--muted); }
+.wpoints { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0 0 14px; padding: 0; min-height: 34px; }
+.wpoints li { border: 1px solid var(--line); border-radius: 99px; background: var(--paper); color: var(--ink); padding: 6px 12px; font-size: 13px; }
+.wfoot { display: flex; gap: 14px; justify-content: center; align-items: center; margin: 0; }
+@media (max-width: 480px) { .wopt { width: 88px; height: 58px; margin: -29px 0 0 -44px; font-size: 12px; } .whub { inset: 70px; } .wblurb { font-size: 12.5px; } .wdial { --wr: calc(var(--size) / 2 - 29px); } }
+@media (prefers-reduced-motion: reduce) { .wring, .wopt, .wdial, .welcome { transition: none; } }
+/* Who sees what: study tools for anyone taking notes, class things for students only, teaching tools for teachers. */
+:root:not([data-role="student"]) .classonly { display: none !important; }
+
+/* ---------- calendar chip and panel (src/home/calendar.ts) ---------- */
+.calchip svg { width: 16px; height: 16px; color: var(--muted); flex: none; }
+.calchip b { font: 700 15px var(--display); font-variant-numeric: tabular-nums; }
+.calchip b.late { color: var(--bad); }
+.calchip { position: relative; }
+.latedot { position: absolute; top: -2px; right: -2px; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); border: 2px solid var(--paper); }
+.lbpop.calpop { width: 300px; max-width: calc(100vw - 24px); }
+.calhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.calhead h3 { margin: 0; font: 700 15px var(--display); letter-spacing: 0; text-transform: none; color: var(--ink); }
+.calnav { border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 8px; min-width: 28px; height: 28px; padding: 0 8px; font: 600 12px var(--display); cursor: pointer; margin-left: 4px; }
+.calgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin: 8px 0 10px; }
+.calgrid em { font: 500 10px var(--mono); color: var(--muted); text-align: center; font-style: normal; padding: 2px 0; }
+.cday { position: relative; aspect-ratio: 1; border: 1px solid transparent; border-radius: 9px; background: none; color: var(--ink); font: 500 12px var(--display); cursor: pointer; padding: 0 0 6px; }
+.cday.today { border-color: var(--line); font-weight: 700; background: color-mix(in srgb, var(--cobalt) 10%, transparent); }
+.cday.picked { border-color: var(--ink); }
+.cdots { position: absolute; left: 0; right: 0; bottom: 4px; display: flex; justify-content: center; gap: 2px; }
+.cdots i { width: 5px; height: 5px; border-radius: 50%; }
+.callist { display: flex; flex-direction: column; gap: 2px; max-height: 168px; overflow: auto; margin-bottom: 8px; }
+.crowd { display: flex; align-items: center; gap: 8px; padding: 5px 2px; font-size: 13px; }
+.crowd .ctitle { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.crowd small { font: 11px var(--mono); color: var(--muted); white-space: nowrap; }
+.crowd.late small { color: var(--bad); }
+.crowd.done .ctitle { text-decoration: line-through; color: var(--muted); }
+.crowd input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--cobalt); flex: none; margin: 0; }
+.ckind { width: 10px; height: 10px; border-radius: 50%; flex: none; margin: 0 3px; }
+.cdel { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; padding: 2px 4px; }
+.caladd { display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--line); padding-top: 10px; }
+.caladd input, .caladd select { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font: 13px var(--display); padding: 6px 8px; min-width: 0; }
+.caladd #calTitle { flex: 1 1 100%; }
+.caladd #calDate { flex: 1 1 120px; }
+.caladd select { flex: 1 1 90px; }
+@media (hover: hover) { .cday:hover, .calnav:hover { border-color: var(--ink); } .cdel:hover { color: var(--bad); } }
+#classes.noclass .exam, #classes.noclass [data-share], #classes.noclass .code, #classes.noclass #sJoin, #classes.noclass #sJoin + p { display: none; }
+.roleseg { margin: 0 0 12px; }

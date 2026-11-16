@@ -240,3 +240,58 @@ a.brand{text-decoration:none;color:inherit}
 .waiting-room{min-height:calc(100dvh - 57px)}
 .class-ended{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:0 0 14px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font-size:13px}
 .class-ended a{margin-left:auto;color:var(--ink);font-weight:600}
+
+/* ===== The teacher's home: a turning tray of presentations (Reel.tsx) ===== */
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.deck-library{overflow-x:clip}
+.reel-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 14px;margin:6px auto 4px;max-width:980px}
+.reel-bar .library-search{flex:1 1 280px;max-width:420px;margin:0}
+.reel-bar .library-search input{width:100%;border-radius:99px;padding:10px 16px}
+.reel-classes{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.reel-classes button{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:99px;padding:6px 12px;font:600 12px var(--display);min-height:0;cursor:pointer}
+.reel-classes button i,.reel-meta i,.reel-label i{width:9px;height:9px;border-radius:50%;background:var(--cc,var(--line));flex:none}
+.reel-classes button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.reel{--reel-w:clamp(230px,38vw,500px);--reel-r:calc(var(--reel-w) * 2);position:relative;height:calc(var(--reel-w) * .5625 + 64px);margin:26px 0 0;perspective:1500px;perspective-origin:50% 30%;outline:none;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.reel:focus-visible .reel-card.front .deck-cover{outline:2px solid var(--ink);outline-offset:4px}
+.reel-tray{list-style:none;margin:0;padding:0;position:absolute;inset:0;transform-style:preserve-3d;transform:rotateX(3deg)}
+.reel-card{position:absolute;left:50%;top:6px;width:var(--reel-w);margin-left:calc(var(--reel-w) / -2);transition:transform .55s cubic-bezier(.2,.9,.3,1),opacity .3s;transform-style:preserve-3d;will-change:transform}
+.reel-tray.dragging .reel-card{transition:none}
+.reel-card .deck-cover{display:block;position:relative;width:100%;aspect-ratio:16/9;padding:0;border:1px solid var(--line);border-top:4px solid var(--cc,var(--line));border-radius:16px;overflow:hidden;background:var(--paper);cursor:pointer;box-shadow:0 14px 34px rgba(20,15,50,.16);filter:saturate(.75) brightness(.94);transition:filter .3s,box-shadow .3s;min-height:0}
+.reel-card.front .deck-cover{filter:none;box-shadow:0 0 0 4px color-mix(in srgb,var(--cc,var(--cobalt)) 26%,transparent),0 26px 60px rgba(20,15,50,.24)}
+.reel-card .deck-cover>*{pointer-events:none}
+.deck-waiting{position:absolute;left:10px;bottom:10px;background:var(--mark);color:#1A1830;border-radius:99px;padding:3px 9px;font:700 11px var(--mono)}
+.reel-label{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:10px;font:600 13px var(--display);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .3s}
+.reel-card.front .reel-label{opacity:0}
+.reel-turn{position:absolute;top:calc(var(--reel-w) * .28);z-index:200;width:44px;height:44px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--line);background:var(--paper);color:var(--ink);font-size:24px;line-height:1;cursor:pointer;box-shadow:0 6px 18px rgba(20,15,50,.14)}
+.reel-turn.prev{left:max(4px,calc(50% - var(--reel-w) / 2 - 64px))}
+.reel-turn.next{right:max(4px,calc(50% - var(--reel-w) / 2 - 64px))}
+.reel-turn:disabled{opacity:.3;cursor:default}
+.reel-empty{padding:60px 0;text-align:center}
+.reel-hub{position:relative;max-width:620px;margin:-34px auto 0;text-align:center;z-index:5}
+.reel-hub::before{content:"";display:block;width:2px;height:22px;margin:0 auto 8px;background:linear-gradient(var(--cc,var(--line)),transparent)}
+.reel-meta{display:inline-flex;align-items:center;gap:7px;margin:0 0 4px;font:500 12px var(--mono);letter-spacing:.04em;color:var(--muted)}
+.reel-hub h2{font:700 clamp(22px,3.2vw,32px) var(--display);letter-spacing:-.02em;margin:0 0 14px;color:var(--ink)}
+.reel-hub .deck-actions{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px;margin:0 0 12px}
+.reel-hub .deck-open{display:inline-flex;align-items:baseline;gap:9px;border-radius:99px;padding:11px 26px;font:700 16px var(--display);text-decoration:none;background:var(--cobalt);color:var(--oncobalt)}
+.reel-hub .deck-open small{font:500 11px var(--mono);opacity:.8}
+.reel-hub .deck-session{margin:0 auto 8px}
+.reel-hub .deck-edited{margin:0}
+.reel-strip{display:flex;align-items:flex-end;justify-content:center;gap:4px;margin:22px auto 0;min-height:30px;flex-wrap:wrap;max-width:900px}
+.reel-strip button{width:8px;height:16px;min-height:0;padding:0;border:0;border-radius:3px;background:var(--cc,var(--line));opacity:.45;cursor:pointer;transition:height .2s,opacity .2s}
+.reel-strip button.on{height:28px;opacity:1}
+.reel-strip span{font:500 11px var(--mono);color:var(--muted);margin-left:10px;align-self:center}
+@media (hover:hover){.reel-strip button:hover{opacity:1}.reel-turn:not(:disabled):hover,.reel-classes button:hover{border-color:var(--ink)}.reel-card:not(.front) .deck-cover:hover{filter:none}}
+@media (max-width:640px){.reel{--reel-w:min(74vw,360px)}.reel-turn{display:none}.reel-hub{margin-top:-28px}}
+@media (prefers-reduced-motion:reduce){.reel-card{transition:none}}
+.reel-hub .deck-menu{margin-left:0}
+.reel{--reel-r:calc(var(--reel-w) * 1.9)}
+@media (max-width:640px){.library-stats{display:none}.library-header h1{font-size:30px}}
+.reel{--reel-r:calc(var(--reel-w) * 2);-webkit-mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent);mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)}
+.reel-card:not(.front) .deck-cover{box-shadow:none}
+.reel{perspective:none}.reel-tray,.reel-card{transform-style:flat}.reel-tray{transform:none}
+/* inside a presentation, the way home is the loudest thing in the bar: a solid pill beside the wordmark */
+.lb-back{display:inline-flex;align-items:center;gap:6px;background:var(--ink);color:var(--paper);border-radius:99px;padding:8px 16px 8px 11px;font:700 14px var(--display);text-decoration:none;white-space:nowrap;box-shadow:0 4px 14px rgba(20,15,50,.18)}
+.lb-back svg{width:15px;height:15px}
+.lb-back:focus-visible{outline:2px solid var(--cobalt);outline-offset:3px}
+@media (hover:hover){.lb-back:hover{background:var(--cobalt);color:var(--oncobalt)}}
+@media (max-width:640px){.lb-back{padding:7px 12px 7px 9px;font-size:13px}}
