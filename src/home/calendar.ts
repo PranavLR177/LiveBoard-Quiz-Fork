@@ -19,7 +19,7 @@ export function calendarChip(isOpen: boolean): string {
   const all = agenda(), todo = open(all);
   const late = todo.filter(x => daysUntil(x.date) < 0).length;
   const next = todo.find(x => daysUntil(x.date) >= 0) || todo[0];
-  const label = next ? `<b class="${daysUntil(next.date) < 0 ? "late" : ""}">${daysUntil(next.date) === 0 ? "Today" : daysUntil(next.date) < 0 ? "Late" : daysUntil(next.date) + "d"}</b><small>${esc(next.title.slice(0, 18))}</small>` : `<small>Calendar</small>`;
+  const label = next ? `<b class="${daysUntil(next.date) < 0 ? "late" : ""}">${daysUntil(next.date) === 0 ? "Today" : daysUntil(next.date) < 0 ? "Late" : daysUntil(next.date) + "d"}</b><small class="calwhat">${esc(next.title)}</small>` : `<small>Calendar</small>`;
   return `<div class="lbwrap"><button class="chip calchip" id="calBtn" data-popbtn="cal" aria-expanded="${isOpen}" title="${next ? esc(next.title) + " · " + when(next.date) : "Deadlines and reminders"}${late ? ` · ${late} late` : ""}">${ICON}${label}${late ? `<i class="latedot" aria-label="${late} late"></i>` : ""}</button>
     <div class="lbpop calpop" data-pop="cal" ${isOpen ? "" : "hidden"}>${panel(all)}</div></div>`;
 }

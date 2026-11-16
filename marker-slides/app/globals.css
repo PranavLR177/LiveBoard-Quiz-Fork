@@ -232,8 +232,8 @@ a.brand{text-decoration:none;color:inherit}
 @media (max-width:440px){.lb-brandname{display:none}}
 .projector-view .lb-top{border-bottom:0}
 /* the old stand-alone header sizes */
-.slide-rail{min-height:calc(100dvh - 57px)}
-@media (min-width:1101px){.slide-rail{height:calc(100dvh - 57px)}}
+/* only where the rail is a column down the side; on smaller screens it is a strip across the top */
+@media (min-width:1101px){.slide-rail{min-height:calc(100dvh - 57px);height:calc(100dvh - 57px)}}
 .student-view.workspace-open .discussion{top:68px}
 .deck-library{min-height:calc(100dvh - 57px);padding-top:28px}
 .library-header h1{margin:0 0 4px}
@@ -295,3 +295,54 @@ a.brand{text-decoration:none;color:inherit}
 .lb-back:focus-visible{outline:2px solid var(--cobalt);outline-offset:3px}
 @media (hover:hover){.lb-back:hover{background:var(--cobalt);color:var(--oncobalt)}}
 @media (max-width:640px){.lb-back{padding:7px 12px 7px 9px;font-size:13px}}
+
+/* ===== Teacher home, second pass: the presentation in front shows its own slides on the tray; the other
+   presentations wait underneath, peeking up from the bottom of the screen, and scrolling pulls the next one up. ===== */
+.deck-library{padding-bottom:128px}
+.library-header{margin-bottom:6px}
+.library-header h1{font-size:clamp(24px,3vw,34px)}
+.reel{--reel-w:clamp(210px,min(38vw,(100dvh - 520px) * 1.6),500px);margin-top:18px}
+.deck-stage{transform-origin:50% 0}
+@keyframes pull-up{from{transform:translateY(42vh) scale(.86);opacity:0}to{transform:none;opacity:1}}
+@keyframes pull-down{from{transform:translateY(-30vh) scale(.9);opacity:0}to{transform:none;opacity:1}}
+.deck-stage.from-below{animation:pull-up .5s cubic-bezier(.2,.9,.25,1)}
+.deck-stage.from-above{animation:pull-down .45s cubic-bezier(.2,.9,.25,1)}
+.deck-above{display:flex;align-items:center;gap:8px;max-width:min(520px,90%);margin:8px auto 0;border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;background:var(--paper);color:var(--muted);padding:6px 16px;font:600 12px var(--display);min-height:0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.deck-above span{color:var(--ink)}
+.reel-strip{--tick:var(--cc,var(--line))}
+.reel-strip button{background:var(--tick)}
+.deck-below{position:fixed;left:50%;bottom:0;z-index:20;width:min(640px,calc(100vw - 96px));height:96px;transform:translateX(-50%);pointer-events:none}
+.deck-peek{position:absolute;left:0;right:0;bottom:calc(-14px - var(--n) * -12px);display:flex;align-items:center;gap:12px;min-height:0;height:86px;padding:10px 14px 22px;border:1px solid var(--line);border-top:3px solid var(--cc,var(--line));border-radius:18px 18px 0 0;background:var(--paper);color:var(--ink);text-align:left;cursor:pointer;pointer-events:auto;
+  transform:scale(calc(1 - var(--n) * .06));transform-origin:50% 100%;z-index:calc(10 - var(--n));box-shadow:0 -8px 30px rgba(20,15,50,.14);transition:transform .25s,bottom .25s}
+.deck-peek:not(:first-child){filter:brightness(.96)}
+.deck-peek:not(:first-child)>*{visibility:hidden}
+.deck-peek-thumb{flex:none;width:86px;aspect-ratio:16/9;border-radius:8px;overflow:hidden;border:1px solid var(--line);position:relative}
+.deck-peek-thumb>*{pointer-events:none}
+.deck-peek-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.deck-peek-text b{font:700 15px var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.deck-peek-text small{font:500 11px var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.deck-peek-hint{flex:none;font:600 11px var(--mono);color:var(--muted);white-space:nowrap}
+.deck-peek-hint i{display:inline-block;font-style:normal}
+@media (hover:hover){.deck-peek:first-child:hover{transform:translateY(-10px)}.deck-above:hover{color:var(--ink);border-color:var(--ink)}}
+.deck-peek:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media (max-width:640px){.deck-below{width:calc(100vw - 24px);height:84px}.deck-peek-hint{display:none}.deck-peek{height:78px}.deck-library{padding-bottom:110px}}
+@media (prefers-reduced-motion:reduce){.deck-stage.from-below,.deck-stage.from-above{animation:none}}
+/* one compact line for the page title and its button, so the tray and the presentations below fit one screen */
+.library-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 4px}
+.library-header h1{font-size:clamp(20px,2.4vw,26px);margin:0;letter-spacing:-.02em}
+.library-stats{display:none}
+.deck-library{padding-top:16px;padding-bottom:104px}
+.reel{--reel-w:clamp(210px,min(38vw,(100dvh - 575px) * 1.6),500px);margin-top:14px}
+.reel-hub h2{margin-bottom:10px}
+.reel-strip{margin-top:12px}
+/* small screens: inside a presentation the bar keeps only what is needed there (the way back, light/dark, the switch) */
+@media (max-width:700px){.lb-top.in-deck .lb-btn{display:none}}
+@media (max-width:560px){.lb-brandname{display:none}.lb-top{gap:6px;padding-left:12px;padding-right:12px}.lb-pill{padding:5px 8px}}
+@media (max-width:400px){.lb-top.in-deck .lb-pill{display:none}}
+.reel{--reel-w:clamp(260px,min(38vw,(100dvh - 575px) * 1.6),500px)}
+@media (max-width:640px){.reel{--reel-w:min(74vw,360px)}}
+html,body{overflow-x:clip}
+/* slides are 16:10; the tray and the peeking cards use the same shape so nothing is cropped */
+.reel-card .deck-cover,.deck-peek-thumb{aspect-ratio:1.6}
+.reel{height:calc(var(--reel-w) * .625 + 64px)}
+.reel-turn{top:calc(var(--reel-w) * .31)}

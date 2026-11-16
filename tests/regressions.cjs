@@ -492,25 +492,32 @@ const BASE = process.env.BASE || "http://localhost:4173";
     await r.route(/fonts\.(googleapis|gstatic)\.com/, x => x.abort());
     await r.route("**/api/marker", x => x.fulfill({ json: { ai: false } }));
     const role = () => r.evaluate(() => localStorage.getItem("liveboard-role"));
-    const picked = () => r.$eval('.wopt[aria-checked="true"]', e => e.textContent.trim());
+    const lit = () => r.evaluate(() => document.querySelector('.wopt[aria-pressed="true"]')?.textContent.trim() || null);
 
     await r.goto(BASE);
     await r.waitForSelector(".welcome");
-    ok(!(await r.$(".fcard")) && await picked() === "Just me" && (await r.$$(".wopt")).length === 2, "the first screen is the welcome dial, before any notes: Just me or Education");
-    await r.keyboard.press("ArrowRight");
-    ok(await picked() === "Education" && /Next/.test(await r.textContent("#wGo")), "the arrow keys turn the dial; Education leads on to a second choice");
-    await r.click("#wGo");
-    await r.waitForFunction(() => document.querySelector('.wopt[aria-checked="true"]')?.textContent.trim() === "Student");
-    ok(/Teacher/.test(await r.textContent("#wRing")) && await r.isVisible("#wBack"), "Education turns the dial over to Student or Teacher, with a way back");
+    const boxes = await r.$$eval(".wopt", els => els.map(e => { const b = e.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; }));
+    ok(!(await r.$(".fcard")) && boxes.length === 2 && await lit() === null, "the first screen is the welcome dial, before any notes, with nothing chosen yet");
+    ok(Math.abs(boxes[0].y - boxes[1].y) < 4 && boxes[1].x - boxes[0].x > 100, "Just me and Education sit side by side at the top of the dial");
+    await r.click('.wopt:has-text("Education")');
+    ok(await lit() === "Education" && !/Student/.test(await r.textContent("#wRing")) && /again/.test(await r.textContent("#wHub")), "one click lights a choice up and says what it is, without going in");
+    await r.click('.wopt:has-text("Just me")');
+    ok(await lit() === "Just me" && await r.isVisible(".welcome"), "clicking the other one moves the light across");
+    await r.click('.wopt:has-text("Education")'); await r.click('.wopt:has-text("Education")');
+    await r.waitForSelector('.wopt:has-text("Teacher")');
+    ok(await lit() === null && /Student/.test(await r.textContent("#wRing")) && await r.isVisible("#wBack"), "a second click goes in: Education turns the dial over to Student or Teacher, with a way back");
     await r.click("#wBack");
-    ok(await picked() === "Education", "Back returns to the first choice");
-    // dragging the ring half a turn brings the other choice to the pointer
+    ok(await lit() === "Education" && /Just me/.test(await r.textContent("#wRing")), "Back returns to the first choice");
+    // dragging the ring a notch brings the neighbouring choice to the pointer
     const box = await r.locator("#wDial").boundingBox(), cx = box.x + box.width / 2, cy = box.y + box.height / 2, rad = box.width / 2 - 34;
-    await r.mouse.move(cx + rad, cy); await r.mouse.down();
-    for (let i = 1; i <= 12; i++) { const a = Math.PI * i / 12; await r.mouse.move(cx + rad * Math.cos(a), cy + rad * Math.sin(a)); }
+    const at = deg => [cx + rad * Math.cos(deg * Math.PI / 180), cy + rad * Math.sin(deg * Math.PI / 180)];
+    await r.mouse.move(...at(-60)); await r.mouse.down();
+    for (let d = -60; d <= -18; d += 6) await r.mouse.move(...at(d));
     await r.mouse.up(); await r.waitForTimeout(200);
-    ok(await picked() === "Just me", "dragging the ring turns it and it settles on the nearest choice");
-    await r.click("#wGo");
+    ok(await lit() === "Just me" && await r.isVisible(".welcome"), "dragging the ring turns it and it settles on the nearest choice, still without going in");
+    await r.keyboard.press("ArrowRight"); await r.keyboard.press("ArrowLeft");
+    ok(await lit() === "Just me", "the arrow keys move between the choices");
+    await r.keyboard.press("Enter");
     await r.waitForSelector(".fcard");
     ok(await role() === "individual" && !(await r.$(".welcome")), "choosing Just me opens the notes and remembers it");
     ok(!(await r.isVisible("#discussionJoin")) && !(await r.$("#lbWrap")) && !(await r.$(".examchip")) && !(await r.isVisible("#teacherLink")), "an individual has no Join class, class or exam chips, or teaching tools");

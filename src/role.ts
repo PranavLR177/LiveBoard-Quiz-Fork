@@ -47,9 +47,10 @@ export function classroomUrl(role: "student" | "teacher") {
 }
 
 /* ---------- the welcome dial ----------
-   The first screen is a dial, like the home screen it leads to: the choices sit on a ring, and whichever is turned to
-   the pointer at the top is the one picked. Drag the ring, use the arrow keys, or tap a choice. First "Just me" or
-   "Education"; Education turns the ring over to Student or Teacher. */
+   The first screen is a dial, like the home screen it leads to. The choices sit side by side at the top of the ring,
+   the way notes and folders do on the home dial. One click turns a choice to the pointer and lights it up; a second
+   click on it goes in. (Arrow keys and dragging turn the ring too; Enter goes in.) First "Just me" or "Education";
+   Education turns the ring over to Student or Teacher. */
 type Choice = { id: string; label: string; blurb: string; points: string[]; color: string; icon: string };
 const ICON = {
   me: `<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c.8-4 3.6-6 7.5-6s6.700 2 7.500 6"/>`,
@@ -72,64 +73,63 @@ export function pickRole(): Promise<Role> {
     const wrap = document.createElement("div");
     wrap.className = "welcome";
     wrap.innerHTML = `<div class="wcard" role="dialog" aria-modal="true" aria-labelledby="wTitle" tabindex="-1">
-      <div class="whead"><h1 id="wTitle">Welcome to LiveBoard</h1><p class="muted" id="wStep">Turn the dial to how you'll use it.</p></div>
+      <div class="whead"><h1 id="wTitle">Welcome to LiveBoard</h1><p class="muted" id="wStep"></p></div>
       <div class="wdial" id="wDial"><span class="wpointer" aria-hidden="true"></span>
-        <div class="wring" id="wRing" role="radiogroup" aria-label="How you'll use LiveBoard"></div>
+        <div class="wring" id="wRing" role="group" aria-label="How you'll use LiveBoard"></div>
         <div class="whub" id="wHub" aria-live="polite"></div></div>
       <ul class="wpoints" id="wPoints"></ul>
       <p class="muted small wfoot"><button class="linkbtn" id="wBack" hidden>← Back</button><span id="wNote">You can change this later in Settings.</span></p>
     </div>`;
     document.body.appendChild(wrap);
     const ring = wrap.querySelector<HTMLElement>("#wRing")!, hub = wrap.querySelector<HTMLElement>("#wHub")!, dial = wrap.querySelector<HTMLElement>("#wDial")!;
-    const back = wrap.querySelector<HTMLButtonElement>("#wBack")!, step = wrap.querySelector<HTMLElement>("#wStep")!;
-    let set = TOP, sel = 0, turn = 0; // turn: the ring's rotation in degrees; choice i sits at i * (360 / n) around it
-    const slice = () => 360 / set.length;
+    const back = wrap.querySelector<HTMLButtonElement>("#wBack")!, step = wrap.querySelector<HTMLElement>("#wStep")!, points = wrap.querySelector<HTMLElement>("#wPoints")!;
+    const GAP = 42; // degrees between neighbouring choices: close enough to read as a pair, far enough not to touch
+    let set = TOP, sel = -1, turn = 0; // sel -1: nothing lit yet. turn: the ring's rotation in degrees
+    const at = (i: number) => (i - (set.length - 1) / 2) * GAP; // where choice i sits on the ring, 0 being the top
+    const touch = matchMedia("(hover: none)").matches;
     const paint = (animate = true) => {
-      ring.style.transition = animate ? "" : "none";
-      ring.style.transform = `rotate(${turn}deg)`;
+      ring.classList.toggle("still", !animate);
       ring.querySelectorAll<HTMLElement>(".wopt").forEach((o, i) => {
-        o.style.transform = `rotate(${i * slice()}deg) translateY(calc(var(--wr) * -1)) rotate(${-i * slice() - turn}deg)`;
-        o.setAttribute("aria-checked", String(i === sel)); o.tabIndex = i === sel ? 0 : -1;
+        o.style.transform = `rotate(${at(i) + turn}deg) translateY(calc(var(--wr) * -1)) rotate(${-at(i) - turn}deg)`;
+        o.setAttribute("aria-pressed", String(i === sel));
+        o.setAttribute("aria-label", `${set[i].label}. ${set[i].blurb} ${i === sel ? "Press again to continue." : ""}`);
       });
       const c = set[sel];
-      wrap.style.setProperty("--wc", c.color);
-      wrap.querySelector<HTMLElement>("#wPoints")!.innerHTML = c.points.map(p => `<li>${esc(p)}</li>`).join("");
-      hub.innerHTML = `<b class="wname">${esc(c.label)}</b><span class="wblurb">${esc(c.blurb)}</span>
-        <button class="btn primary wgo" id="wGo">${c.id === "education" ? "Next" : "Continue"}</button>
-        ${set === EDU && !import.meta.env.VITE_ARTIFACT ? `<a class="wjoin" href="${esc(classroomUrl("student"))}">Just joining a class? Enter a code →</a>` : ""}`;
-      hub.querySelector<HTMLButtonElement>("#wGo")!.onclick = go;
+      wrap.style.setProperty("--wc", c ? c.color : "var(--line)");
+      points.innerHTML = (c ? c.points : []).map(p => `<li>${esc(p)}</li>`).join("");
+      hub.innerHTML = c
+        ? `<b class="wname">${esc(c.label)}</b><span class="wblurb">${esc(c.blurb)}</span><span class="wagain">${touch ? "Tap" : "Click"} it again to ${c.id === "education" ? "choose" : "open"}</span>`
+        : `<b class="wname wask">${set === TOP ? "Who's it for?" : "Which one?"}</b><span class="wblurb">${touch ? "Tap" : "Click"} one to see it. ${touch ? "Tap" : "Click"} again to go in.</span>
+           ${set === EDU && !import.meta.env.VITE_ARTIFACT ? `<a class="wjoin" href="${esc(classroomUrl("student"))}">Just joining a class? Enter a code →</a>` : ""}`;
     };
     const build = () => {
-      ring.innerHTML = set.map((c, i) => `<button class="wopt" role="radio" data-i="${i}" style="--oc:${c.color}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${c.icon}</svg><span>${esc(c.label)}</span></button>`).join("");
+      ring.innerHTML = set.map((c, i) => `<button class="wopt" data-i="${i}" style="--oc:${c.color}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${c.icon}</svg><span>${esc(c.label)}</span></button>`).join("");
       back.hidden = set === TOP;
-      step.textContent = set === TOP ? "Turn the dial to how you'll use it." : "Learning in a class, or teaching one?";
+      step.textContent = set === TOP ? "Just for you, or for a class?" : "Learning in a class, or teaching one?";
     };
-    /** Turns the shortest way round to choice i. */
-    const select = (i: number) => {
-      sel = (i + set.length) % set.length;
-      const want = -sel * slice();
-      turn += ((want - turn) % 360 + 540) % 360 - 180;
-      paint();
+    /** Turns choice i to the pointer and lights it. */
+    const select = (i: number) => { sel = Math.max(0, Math.min(set.length - 1, i)); turn = -at(sel); paint(); };
+    /** Swaps in another set of choices with a full turn of the ring, nothing lit. */
+    const swap = (next: Choice[], dir: 1 | -1) => {
+      set = next; sel = -1; build();
+      turn = dir * 360; paint(false); void ring.offsetWidth; // start a full turn away, then let it swing home
+      turn = 0; paint();
     };
     function go() {
       const c = set[sel];
-      if (c.id === "education") { set = EDU; sel = 0; build(); paint(false); void ring.offsetWidth; spin(-1); wrap.querySelector<HTMLElement>(".wopt")!.focus(); return; } // the ring swings round with the next choices
+      if (!c) return;
+      if (c.id === "education") { swap(EDU, -1); wrap.querySelector<HTMLElement>(".wopt")!.focus(); return; }
       const r = c.id as Role;
       setRole(r);
       wrap.classList.add("leaving");
       setTimeout(() => { wrap.remove(); resolve(r); }, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 260);
     }
-    /** Swings at least half a turn in one direction and lands on the current choice. */
-    const spin = (dir: 1 | -1) => {
-      const want = -sel * slice();
-      turn = dir < 0 ? want + 360 * Math.floor((turn - 180 - want) / 360) : want + 360 * Math.ceil((turn + 180 - want) / 360);
-      paint();
-    };
-    back.onclick = () => { set = TOP; sel = 1; build(); paint(false); void ring.offsetWidth; spin(1); wrap.querySelector<HTMLElement>(".wopt[aria-checked=true]")!.focus(); };
+    back.onclick = () => { swap(TOP, 1); select(1); ring.querySelector<HTMLElement>('.wopt[aria-pressed="true"]')!.focus(); };
     ring.addEventListener("click", e => { const o = (e.target as HTMLElement).closest<HTMLElement>(".wopt"); if (o && !dragged) { const i = +o.dataset.i!; if (i === sel) go(); else select(i); } });
     wrap.addEventListener("keydown", e => {
-      if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); select(sel + 1); ring.querySelector<HTMLElement>(".wopt[aria-checked=true]")!.focus(); }
-      else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); select(sel - 1); ring.querySelector<HTMLElement>(".wopt[aria-checked=true]")!.focus(); }
+      const move = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+      if (move) { e.preventDefault(); select(sel < 0 ? (move > 0 ? 0 : set.length - 1) : sel + move); ring.querySelector<HTMLElement>('.wopt[aria-pressed="true"]')!.focus(); }
+      else if (e.key === "Enter" && sel >= 0 && !(e.target as HTMLElement).closest(".wopt, a, button")) { e.preventDefault(); go(); }
       else if (e.key === "Escape" && set === EDU) back.click();
     });
     // dragging the ring turns it; letting go settles on the nearest choice
@@ -140,15 +140,13 @@ export function pickRole(): Promise<Role> {
       if (!start || !wrap.isConnected) return;
       let d = angle(e) - start.a; d = ((d + 540) % 360) - 180;
       if (Math.abs(d) > 4) dragged = true;
-      if (dragged) { turn = start.turn + d; paint(false); }
+      if (dragged) { turn = Math.max(-at(set.length - 1) - 25, Math.min(-at(0) + 25, start.turn + d)); paint(false); }
     });
     addEventListener("pointerup", () => {
       if (!start || !wrap.isConnected) return;
       start = null;
-      if (dragged) { select(Math.round(-turn / slice())); setTimeout(() => { dragged = false; }, 0); }
+      if (dragged) { let best = 0; set.forEach((_, i) => { if (Math.abs(at(i) + turn) < Math.abs(at(best) + turn)) best = i; }); select(best); setTimeout(() => { dragged = false; }, 0); }
     });
-    dial.addEventListener("wheel", e => { e.preventDefault(); if (Math.abs(e.deltaY) + Math.abs(e.deltaX) > 12 && !wheelLock) { wheelLock = true; select(sel + (e.deltaY + e.deltaX > 0 ? 1 : -1)); setTimeout(() => { wheelLock = false; }, 320); } }, { passive: false });
-    let wheelLock = false;
     build(); paint(false);
     wrap.querySelector<HTMLElement>(".wcard")!.focus(); // focus the dialog, not a choice
   });

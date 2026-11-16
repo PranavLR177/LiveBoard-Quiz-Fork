@@ -70,7 +70,7 @@ button:disabled { cursor: default; opacity: .6; }
 .dialwrap { min-height: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 /* The morning line: the greeting and what's waiting are the heading; the streak sits to its left and exams and class
    to its right, each joined to the heading by a hairline, so the whole strip reads as one horizon above the dial. */
-.morning { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; width: min(1180px, 100%); padding: 2px 4px 0; }
+.morning { display: grid; grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr); align-items: center; gap: 16px; width: min(1500px, 100%); padding: 2px 4px 0; }
 .mside { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .mside.right { justify-content: flex-end; }
 .mside.left::after, .mside.right::before { content: ""; flex: 1 1 24px; min-width: 16px; height: 1px; margin: 0 8px; }
@@ -101,8 +101,10 @@ button:disabled { cursor: default; opacity: .6; }
 .morning .recallbtn svg { width: 14px; height: 14px; }
 .morning .recallbtn:disabled { padding: 3px 0; border: 0; background: none; font: 12px var(--mono); }
 .mside.right .lbpop { left: auto; right: 0; }
-@media (max-width: 1340px) { .lbwrap.later { display: none; } } /* only the nearest exam when the chips would run into the heading */
-@media (max-width: 860px) {
+@media (max-width: 1640px) { .lbwrap.later { display: none; } } /* only the nearest exam when the chips would run into the heading */
+/* Three chips on the right need about 400px beside the heading. Below this width there isn't room for both, so the
+   heading takes the first line and the chips sit centred under it instead of running into it. */
+@media (max-width: 1280px) {
   .morning { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 6px; }
   .mhead { order: -1; width: 100%; margin-bottom: 2px; }
   .mside.left::after, .mside.right::before { display: none; }
@@ -1523,13 +1525,16 @@ html.cramming { overflow: hidden; }
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); opacity: .55; }
 .wdial::after { content: ""; position: absolute; inset: 50px; border-radius: 50%; border: 1px dashed var(--line); }
 .wpointer { position: absolute; left: 50%; top: -4px; width: 0; height: 0; margin-left: -9px; border: 9px solid transparent; border-top: 12px solid var(--wc); z-index: 3; transition: border-top-color .3s; }
-.wring { position: absolute; inset: 0; pointer-events: none; transition: transform .7s cubic-bezier(.3, 1.35, .45, 1); z-index: 2; }
-.wopt { pointer-events: auto; position: absolute; left: 50%; top: 50%; width: 104px; height: 68px; margin: -34px 0 0 -52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1.5px solid var(--line); border-radius: 18px;
+.wring { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.wopt[aria-pressed="true"] { z-index: 2; }
+.wagain { margin-top: 8px; font: 500 12px var(--mono); color: var(--muted); border: 1px dashed var(--line); border-radius: 99px; padding: 5px 12px; }
+.wname.wask { color: var(--muted); }
+.wopt { pointer-events: auto; cursor: pointer; position: absolute; left: 50%; top: 50%; width: 104px; height: 68px; margin: -34px 0 0 -52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1.5px solid var(--line); border-radius: 18px;
   background: var(--paper); color: var(--muted); font: 600 13px var(--display); cursor: grab; transition: transform .7s cubic-bezier(.3, 1.35, .45, 1), border-color .2s, color .2s, box-shadow .2s; box-shadow: var(--shadow); touch-action: none; }
-.wring[style*="transition: none"] .wopt { transition: border-color .2s, color .2s; }
+.wring.still .wopt { transition: border-color .2s, color .2s; }
 .wopt svg { width: 22px; height: 22px; }
-.wopt[aria-checked="true"] { border-color: var(--oc); color: var(--ink); box-shadow: 0 0 0 4px color-mix(in srgb, var(--oc) 22%, transparent), var(--shadow); }
-.wopt[aria-checked="true"] svg { color: var(--oc); }
+.wopt[aria-pressed="true"] { border-color: var(--oc); color: var(--ink); box-shadow: 0 0 0 4px color-mix(in srgb, var(--oc) 22%, transparent), var(--shadow); }
+.wopt[aria-pressed="true"] svg { color: var(--oc); }
 .wopt:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .whub { position: absolute; inset: 84px; border-radius: 50%; background: var(--paper); border: 1px solid var(--line); box-shadow: var(--shadow); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 12% 11%; z-index: 1; }
 .wname { font: 700 clamp(20px, 4.4vw, 28px) var(--display); letter-spacing: -.02em; color: var(--ink); }
@@ -1578,3 +1583,15 @@ html.cramming { overflow: hidden; }
 @media (hover: hover) { .cday:hover, .calnav:hover { border-color: var(--ink); } .cdel:hover { color: var(--bad); } }
 #classes.noclass .exam, #classes.noclass [data-share], #classes.noclass .code, #classes.noclass #sJoin, #classes.noclass #sJoin + p { display: none; }
 .roleseg { margin: 0 0 12px; }
+.calchip .calwhat { max-width: 11ch; overflow: hidden; text-overflow: ellipsis; }
+/* on the one-line layout the calendar chip is just its icon and the countdown (the title is in its tooltip and panel) */
+@media (min-width: 1281px) { .calchip .calwhat { display: none; } }
+@media (max-width: 1280px) { .mside { flex-wrap: wrap; justify-content: center; } .calchip .calwhat { max-width: 16ch; } }
+/* On a phone a chip can sit anywhere along its row, so its panel can't hang from it without running off the screen:
+   it opens centred on the screen instead. */
+@media (max-width: 560px) {
+  .morning .lbpop { position: fixed; left: 12px; right: 12px; top: 50%; width: auto; max-width: none; max-height: 82dvh; overflow: auto; transform: translateY(-50%); z-index: 60; }
+  .mside.right .lbpop, .mside.left .lbpop { left: 12px; right: 12px; transform: translateY(-50%); }
+}
+/* an open panel on the top line sits above the dial, whose cards otherwise draw over it */
+.morning:has(.lbpop:not([hidden])) { position: relative; z-index: 620; }
