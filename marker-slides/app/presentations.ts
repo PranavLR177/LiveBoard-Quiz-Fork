@@ -19,6 +19,8 @@ export type Presentation = {
   unit: string;
   topic: string;
   updated: number;
+  /** When it was last opened from the home screen; the most recent one is shown in front. */
+  opened?: number;
   created?: number;
   sampleMarkers?: SampleMarker[];
   lastSession?: Session;

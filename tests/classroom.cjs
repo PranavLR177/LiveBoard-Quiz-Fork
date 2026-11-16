@@ -50,25 +50,40 @@ const tokens = p => p.evaluate(() => { const c = getComputedStyle(document.docum
   ok(await t.evaluate(() => document.documentElement.dataset.theme) === "light", "and the choice made on the notes side carries back to the classroom");
   await shot(t, "library-light");
 
-  // ---- the tray: one deck in front, the rest behind it; arrow keys, the strip and a tap all turn it
-  const front = () => t.$eval(".reel-card.front .deck-cover", e => e.getAttribute("aria-label"));
-  const first = await front(), count = (await t.$$(".reel-strip button")).length;
-  ok(count >= 2 && (await t.textContent(".reel-hub h2")) && first.includes(await t.textContent(".reel-hub h2")), "the teacher's home is a tray of presentations with one in front and its actions under it");
+  // ---- the home: the presentation in front shows its own slides on the tray; the others wait below
+  const title = () => t.textContent(".reel-hub h2");
+  const frontSlide = () => t.$eval(".reel-card.front .deck-cover", e => e.getAttribute("aria-label"));
+  const firstDeck = await title(), slides = (await t.$$(".reel-strip button")).length;
+  ok(slides >= 2 && /Slide 1/.test(await frontSlide()) && /Slide 1 of/.test(await t.textContent(".reel-strip span")), "the presentation in front has its slides on the tray, starting at slide 1");
   await t.focus(".reel"); await t.keyboard.press("ArrowRight"); await t.waitForTimeout(100);
-  const second = await front();
-  ok(second !== first && second.includes(await t.textContent(".reel-hub h2")) && /2 of/.test(await t.textContent(".reel-strip span")), "the right arrow turns the tray to the next presentation");
+  ok(/Slide 2/.test(await frontSlide()) && await title() === firstDeck && /at slide 2/.test(await t.textContent(".deck-open")), "the right arrow turns to its next slide, and Open offers to start there");
   await t.click(".reel-strip button >> nth=0"); await t.waitForTimeout(100);
-  ok(await front() === first, "tapping a tick on the strip brings that presentation round");
+  ok(/Slide 1/.test(await frontSlide()), "tapping a tick on the strip brings that slide round");
+  const waiting = await t.textContent(".deck-peek >> nth=0");
+  ok(await t.isVisible(".deck-below") && !waiting.includes(firstDeck), "the other presentations peek up from the bottom of the screen");
+  await t.mouse.move(700, 400); await t.mouse.wheel(0, 240);
+  await t.waitForFunction(was => document.querySelector(".reel-hub h2")?.textContent !== was, firstDeck, { timeout: 4000 }).catch(() => {});
+  const secondDeck = await title();
+  ok(secondDeck !== firstDeck && waiting.includes(secondDeck) && /Slide 1 of/.test(await t.textContent(".reel-strip span")), "scrolling down pulls the next presentation up to the front, on its first slide");
+  ok((await t.textContent(".deck-above")).includes(firstDeck), "and the one that was in front waits just above");
+  await t.waitForTimeout(500); await t.mouse.wheel(0, -240);
+  await t.waitForFunction(was => document.querySelector(".reel-hub h2")?.textContent !== was, secondDeck, { timeout: 4000 }).catch(() => {});
+  ok(await title() === firstDeck, "scrolling up brings it back");
+  await t.click(".deck-peek >> nth=0"); await t.waitForTimeout(150);
+  ok(await title() === secondDeck, "tapping the card that peeks up pulls it up too");
+  await t.keyboard.press("ArrowUp"); await t.waitForTimeout(150);
   await t.fill(".reel-bar input", "zzzz no such deck");
   ok(await t.isVisible(".library-empty"), "searching for something that isn't there says so");
   await t.fill(".reel-bar input", ""); await t.waitForSelector(".reel-card.front");
 
+  await t.focus(".reel"); await t.keyboard.press("ArrowDown"); await t.waitForTimeout(150); // open the second one, so it becomes the most recent
   // ---- open a deck and start a live class
   await t.click(".deck-open"); await t.waitForSelector(".slide-canvas");
   ok(!(await t.$(".topbar")) && /Saved on this device|not saved yet/.test(await t.textContent(".lb-status")), "the editor sits under the same top bar, which says where the deck is saved");
   const backBox = await t.locator(".lb-back").boundingBox();
   ok(await t.isVisible('.lb-back:has-text("All presentations")') && backBox.x < 400 && !(await t.$(".crumb")), "inside a presentation the way home is one solid button beside the wordmark");
   await t.click(".lb-back"); await t.waitForSelector(".reel-card");
+  ok(await title() === secondDeck, "the presentation opened last is the one in front when you come back");
   ok(new URL(t.url()).search === "?view=library", "and it goes back to the presentations home");
   await t.click(".deck-open"); await t.waitForSelector(".slide-canvas");
   await t.click("text=Start live lesson"); await t.waitForSelector(".room-code", { timeout: 10000 });

@@ -1,4 +1,5 @@
 'use client';
+import { go,link } from './nav';
 import { useEffect,useRef,useState,type ReactNode } from 'react';
 import { deletePresentation,listPresentations,savePresentation,type Presentation } from './presentations';
 import { importAccept,importPresentation } from './importPresentation';
@@ -6,7 +7,7 @@ import { newLessons } from './newLessons';
 import { initialSlides } from './data';
 import { SlideFace,SlideThumb } from './SlideFace';
 import TopBar from './TopBar';
-import Reel,{ReelStrip,classColor} from './Reel';
+import Reel,{ReelStrip,classColor,type ReelItem} from './Reel';
 
 /* The teacher's home: every presentation in this browser.
 
@@ -69,7 +70,10 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
   const [order,setOrder]=useState<Order>('updated');
   const [filters,setFilters]=useState({className:'',unit:'',topic:''});
   const [search,setSearch]=useState('');
-  const [focus,setFocus]=useState(0);
+  const [focus,setFocusRaw]=useState(0);
+  const [slideAt,setSlideAt]=useState(0); // which slide of the front presentation is turned to the front
+  const [pulled,setPulled]=useState(0); // which way the front presentation last came in: 1 from below, -1 from above
+  const setFocus=(i:number)=>{setFocusRaw(i);setSlideAt(0);setPulled(0)};
   const [viewer,setViewer]=useState<Presentation|null>(null);
   const [viewerIndex,setViewerIndex]=useState(0);
   const [markerId,setMarkerId]=useState('');
@@ -87,7 +91,7 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
   const fileInput=useRef<HTMLInputElement>(null);
   const scroller=useRef<HTMLDivElement>(null);
   const [progress,setProgress]=useState('');
-  const editor=(id:string,slide?:number)=>location.pathname+'?deck='+encodeURIComponent(id)+(slide?'&slide='+slide:'');
+  const editor=(id:string,slide?:number)=>'?deck='+encodeURIComponent(id)+(slide?'&slide='+slide:'');
   useSlowScroll(scroller,!!viewer,setViewerIndex);
 
   useEffect(()=>{
@@ -149,10 +153,42 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
   const facets=groups.filter(([key])=>decks.some(deck=>deck[key]));
   const words=search.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const ordered=decks.filter(deck=>groups.every(([key])=>!filters[key]||deck[key]===filters[key])&&words.every(word=>[deck.title,deck.className,deck.unit,deck.topic].join(' ').toLowerCase().includes(word))).sort((a,b)=>
-    order==='updated'?b.updated-a.updated:a[order].localeCompare(b[order],undefined,{numeric:true,sensitivity:'base'})||a.title.localeCompare(b.title));
+    order==='updated'?Math.max(b.opened||0,b.updated||0)-Math.max(a.opened||0,a.updated||0): // most recently opened or edited first: that one is in front
+    a[order].localeCompare(b[order],undefined,{numeric:true,sensitivity:'base'})||a.title.localeCompare(b.title));
   const examples=decks.filter(isExample);
+  const live=useRef({at:0,count:0,lock:false,touch:null as null|number});
+  /** Pulls another presentation to the front: +1 the one waiting below, -1 back to the one above. */
+  function pull(step:number){const s=live.current,next=Math.max(0,Math.min(s.count-1,s.at+step));if(next===s.at)return;setFocusRaw(next);setSlideAt(0);setPulled(step>0?1:-1)}
+  /** Opens a presentation at a slide, and remembers it was the last one opened so it is in front next time. */
+  function open(target:Presentation,slide=0){void savePresentation({...target,opened:Date.now()}).catch(()=>{}).finally(()=>go(editor(target.id,slide)))}
+  useEffect(()=>{
+    // Scrolling is how the next presentation comes up. While the page itself can still scroll that way it scrolls as usual;
+    // once it can't (normally straight away, since the home fits the screen) the scroll pulls a presentation instead.
+    const modal=()=>!!document.querySelector('.modal-backdrop');
+    const atEnd=(down:boolean)=>{const el=document.scrollingElement||document.documentElement;return down?el.scrollTop+el.clientHeight>=el.scrollHeight-2:el.scrollTop<=1};
+    const wheel=(event:WheelEvent)=>{
+      if(modal()||event.shiftKey||Math.abs(event.deltaY)<=Math.abs(event.deltaX)||Math.abs(event.deltaY)<8)return;
+      const down=event.deltaY>0,s=live.current;
+      if(!atEnd(down)||(down?s.at>=s.count-1:s.at<=0))return;
+      event.preventDefault();
+      if(s.lock)return;
+      s.lock=true;pull(down?1:-1);setTimeout(()=>{s.lock=false},420);
+    };
+    const key=(event:KeyboardEvent)=>{
+      if(modal()||(event.target as HTMLElement).closest('input,select,textarea,[contenteditable]'))return;
+      if(event.key==='ArrowDown'||event.key==='PageDown'){event.preventDefault();pull(1)}
+      else if(event.key==='ArrowUp'||event.key==='PageUp'){event.preventDefault();pull(-1)}
+    };
+    const touchStart=(event:TouchEvent)=>{live.current.touch=modal()?null:event.touches[0].clientY};
+    const touchEnd=(event:TouchEvent)=>{const from=live.current.touch;live.current.touch=null;if(from==null)return;const dy=event.changedTouches[0].clientY-from;if(Math.abs(dy)>70&&atEnd(dy<0))pull(dy<0?1:-1)};
+    addEventListener('wheel',wheel,{passive:false});addEventListener('keydown',key);addEventListener('touchstart',touchStart,{passive:true});addEventListener('touchend',touchEnd,{passive:true});
+    return()=>{removeEventListener('wheel',wheel);removeEventListener('keydown',key);removeEventListener('touchstart',touchStart);removeEventListener('touchend',touchEnd)};
+  },[]);
   const classes=[...new Set(decks.map(d=>d.className).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
-  const at=Math.max(0,Math.min(ordered.length-1,focus)),deck=ordered[at]; // the deck in front on the tray
+  const at=Math.max(0,Math.min(ordered.length-1,focus)),deck=ordered[at]; // the presentation in front; its slides are on the tray
+  const below=ordered.slice(at+1,at+4); // the next few wait under it, peeking up from the bottom of the screen
+  const items:ReelItem[]=deck?deck.slides.map((slide,i)=>({id:deck.id+':'+i,slide,label:`Slide ${i+1}${slide.title?': '+slide.title.replace(/\n/g,' ').slice(0,60):''}`})):[];
+  live.current.at=at;live.current.count=ordered.length;
   const exampleMarker=viewer?.sampleMarkers?.find(marker=>marker.id===markerId);
   const markerItems=(deck:Presentation)=>deck.lastSession ? deck.lastSession.questions : (deck.sampleMarkers||[]).map(m=>({...m,replies:m.response?[m.response]:[]}));
   const markers=markerDeck?markerItems(markerDeck).map((m,i)=>({...m,sequence:i})).sort((a,b)=>Number(!!a.resolved)-Number(!!b.resolved)||a.slide-b.slide||a.sequence-b.sequence):[];
@@ -177,16 +213,17 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
       </div>}
     </div>
     {error&&<p role="alert">{error}</p>}
-    {loading?<p>Loading presentations…</p>:<>
-      <Reel decks={ordered} focus={at} onFocus={setFocus} onOpen={deck=>location.assign(editor(deck.id))} renderVisual={renderVisual} isExample={isExample}
-        empty={<p className="library-empty">{decks.length?'No presentations match.':'Nothing here yet. Import the slides you already teach from, or start a new presentation.'}</p>}/>
-      {deck&&<section className="reel-hub" aria-live="polite" style={{'--cc':classColor(deck.className)} as any}>
-        <p className="reel-meta"><i/>{[deck.className,deck.unit,deck.topic].filter(Boolean).join(' · ')||'No class set'}</p>
-        <h2>{deck.title}</h2>
-        <div className="deck-actions">
-          <a className="deck-open primary" href={editor(deck.id)}>Open<small>{deck.slides.length} slide{deck.slides.length===1?'':'s'}</small></a>
-          <button onClick={()=>{setMarkerDeck(deck);setMarkerIndex(0)}}>Markers · {markerItems(deck).length}</button>
-          <span className="deck-menu"><button aria-label={'More for '+deck.title} aria-haspopup="menu" aria-expanded={menu===deck.id} onClick={()=>setMenu(menu===deck.id?'':deck.id)}>•••</button>
+    {loading?<p>Loading presentations…</p>:!deck?<p className="library-empty reel-empty">{decks.length?'No presentations match.':'Nothing here yet. Import the slides you already teach from, or start a new presentation.'}</p>:<>
+      {at>0&&<button className="deck-above" onClick={()=>pull(-1)} title="Back to the presentation above"><span aria-hidden="true">↑</span> {ordered[at-1].title}</button>}
+      <div key={deck.id} className={'deck-stage '+(pulled>0?'from-below':pulled<0?'from-above':'')} style={{'--cc':classColor(deck.className)} as any}>
+        <Reel items={items} focus={slideAt} onFocus={setSlideAt} onOpen={index=>open(deck,index)} renderVisual={renderVisual} color={classColor(deck.className)} label={deck.title}/>
+        <section className="reel-hub" aria-live="polite">
+          <p className="reel-meta"><i/>{[deck.className,deck.unit,deck.topic].filter(Boolean).join(' · ')||'No class set'}{isExample(deck)?' · Example':''}</p>
+          <h2>{deck.title}</h2>
+          <div className="deck-actions">
+            <a className="deck-open primary" {...link(editor(deck.id,slideAt))} onClick={event=>{event.preventDefault();open(deck,slideAt)}}>Open<small>{slideAt?`at slide ${slideAt+1}`:`${deck.slides.length} slide${deck.slides.length===1?'':'s'}`}</small></a>
+            <button onClick={()=>{setMarkerDeck(deck);setMarkerIndex(0)}}>Markers · {markerItems(deck).length}</button>
+            <span className="deck-menu"><button aria-label={'More for '+deck.title} aria-haspopup="menu" aria-expanded={menu===deck.id} onClick={()=>setMenu(menu===deck.id?'':deck.id)}>•••</button>
           {menu===deck.id&&<span className="deck-menu-list" role="menu">
             <button role="menuitem" onClick={()=>{setMenu('');setInfo(deck)}}>Presentation info</button>
             <button role="menuitem" onClick={()=>{setMenu('');setEdit(deck)}}>Title and class…</button>
@@ -194,16 +231,23 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
             <button role="menuitem" onClick={()=>{setMenu('');download(fileName(deck.title)+'.liveboard.json',JSON.stringify({title:deck.title,slides:deck.slides},null,2),'application/json')}}>Save as a file</button>
             <button role="menuitem" className="deck-delete" onClick={()=>{setMenu('');setRemove(deck)}}>Delete…</button>
           </span>}</span>
-        </div>
-        {deck.lastSession&&<button className="deck-session" onClick={()=>setReview(deck)}><b>{deck.lastSession.total}</b> question{deck.lastSession.total===1?'':'s'} from class{deck.lastSession.open?<> · <em>{deck.lastSession.open} open</em></>:' · all answered'}<small>{ago(deck.lastSession.at)} · Review class →</small></button>}
-        <p className="deck-edited" title={date(deck.updated)}>{deck.updated?`Last edited ${new Date(deck.updated).toLocaleDateString()}`:"Not edited yet"}</p>
-      </section>}
-      <ReelStrip decks={ordered} focus={at} onFocus={setFocus}/>
+          </div>
+          {deck.lastSession&&<button className="deck-session" onClick={()=>setReview(deck)}><b>{deck.lastSession.total}</b> question{deck.lastSession.total===1?'':'s'} from class{deck.lastSession.open?<> · <em>{deck.lastSession.open} open</em></>:' · all answered'}<small>{ago(deck.lastSession.at)} · Review class →</small></button>}
+        </section>
+        <ReelStrip items={items} focus={slideAt} onFocus={setSlideAt} color={classColor(deck.className)}/>
+      </div>
+      {below.length>0&&<div className="deck-below" role="group" aria-label="Your other presentations. Scroll down to pull the next one up.">
+        {below.map((other,n)=><button key={other.id} className="deck-peek" style={{'--n':n,'--cc':classColor(other.className)} as any} tabIndex={n?-1:0} onClick={()=>pull(n+1)} aria-label={'Pull up: '+other.title}>
+          <span className="deck-peek-thumb">{other.slides[0]&&<SlideThumb slide={other.slides[0]} renderVisual={renderVisual}/>}</span>
+          <span className="deck-peek-text"><b>{other.title}</b><small>{[other.className,other.slides.length+' slide'+(other.slides.length===1?'':'s')].filter(Boolean).join(' · ')}{other.lastSession?.open?` · ${other.lastSession.open} open`:''}</small></span>
+          {n===0&&<span className="deck-peek-hint">{ordered.length-at-1>1?`${ordered.length-at-1} more below`:'1 more below'} <i aria-hidden="true">↓</i></span>}
+        </button>)}
+      </div>}
     </>}
     {examples.length>0&&decks.length>examples.length&&<p className="library-examples">The {examples.length} example{examples.length===1?'':'s'} can go once you have your own. <button disabled={busy} onClick={()=>update(async()=>{for(const deck of examples)await deletePresentation(deck.id)})}>Remove examples</button></p>}
 
     {info&&<div className="modal-backdrop" onClick={()=>setInfo(null)}><section className="modal" role="dialog" aria-modal="true" aria-label="Presentation info" onClick={e=>e.stopPropagation()}><button className="modal-close" aria-label="Close information" onClick={()=>setInfo(null)}>×</button><span className="eyebrow">PRESENTATION INFO</span><h2>{info.title}</h2><dl className="presentation-info"><dt>Created</dt><dd>{date(info.created)}</dd><dt>Last edited</dt><dd>{date(info.updated)}</dd><dt>Slides</dt><dd>{info.slides.length}</dd><dt>Markers</dt><dd>{markerItems(info).length}</dd>{groups.map(([key,label])=><div key={key}><dt>{label}</dt><dd>{info[key]||'Not set'}</dd></div>)}<dt>Last live class</dt><dd>{info.lastSession?date(info.lastSession.at):'Not taught live yet'}</dd></dl></section></div>}
-    {markerDeck&&<div className="modal-backdrop" onClick={()=>setMarkerDeck(null)}><section className="modal marker-browser" role="dialog" aria-modal="true" aria-label="Presentation markers" onClick={e=>e.stopPropagation()}><button className="modal-close" aria-label="Close markers" onClick={()=>setMarkerDeck(null)}>×</button><span className="eyebrow">PRESENTATION MARKERS</span><h2>{markerDeck.title}</h2><p className="quiet">Open markers first, then resolved · ordered by slide</p>{markers.length?<div className="library-marker-layout"><div className="library-marker-list">{markers.map((marker,i)=><div key={i}>{(i===0||!!markers[i-1].resolved!==!!marker.resolved)&&<h3>{marker.resolved?'Resolved markers':'Open markers'}</h3>}<button className={'marker-card '+(markerIndex===i?'selected':'')} style={{'--tc':'var(--student-marker)'} as any} onClick={()=>setMarkerIndex(i)}><div><span className="intent-dot">{marker.kind==='question'?'?':marker.kind==='explain'?'↗':'✧'}</span><b>{marker.kind==='question'?'Question':marker.kind==='explain'?'Explain again':'Idea'}</b><span className="card-chevron">↗</span></div><p>{marker.body}</p><footer>{marker.author}<i> · </i>Slide {marker.slide+1}{!!marker.resolved&&' · Resolved'}</footer></button></div>)}</div>{activeMarker&&<article className="marker-browser-detail"><span className="eyebrow">SLIDE {activeMarker.slide+1} · {activeMarker.resolved?'RESOLVED':'OPEN'}</span><h3>{activeMarker.kind==='question'?'Question':activeMarker.kind==='explain'?'Explain again':'Idea'}</h3><p>{activeMarker.body}</p><small>{activeMarker.author}</small>{activeMarker.replies.map((reply,i)=><blockquote key={i}>{reply}</blockquote>)}{!activeMarker.replies.length&&<p className="quiet">No replies yet.</p>}<a className="outline" href={editor(markerDeck.id,activeMarker.slide)}>Open this slide</a><nav className="marker-browser-nav" aria-label="Browse markers"><button className="outline" disabled={!markerIndex} onClick={()=>setMarkerIndex(i=>i-1)}>← Previous</button><span>{markerIndex+1} / {markers.length}</span><button className="outline" disabled={markerIndex===markers.length-1} onClick={()=>setMarkerIndex(i=>i+1)}>Next →</button></nav></article>}</div>:<p>No saved markers yet.</p>}</section></div>}
+    {markerDeck&&<div className="modal-backdrop" onClick={()=>setMarkerDeck(null)}><section className="modal marker-browser" role="dialog" aria-modal="true" aria-label="Presentation markers" onClick={e=>e.stopPropagation()}><button className="modal-close" aria-label="Close markers" onClick={()=>setMarkerDeck(null)}>×</button><span className="eyebrow">PRESENTATION MARKERS</span><h2>{markerDeck.title}</h2><p className="quiet">Open markers first, then resolved · ordered by slide</p>{markers.length?<div className="library-marker-layout"><div className="library-marker-list">{markers.map((marker,i)=><div key={i}>{(i===0||!!markers[i-1].resolved!==!!marker.resolved)&&<h3>{marker.resolved?'Resolved markers':'Open markers'}</h3>}<button className={'marker-card '+(markerIndex===i?'selected':'')} style={{'--tc':'var(--student-marker)'} as any} onClick={()=>setMarkerIndex(i)}><div><span className="intent-dot">{marker.kind==='question'?'?':marker.kind==='explain'?'↗':'✧'}</span><b>{marker.kind==='question'?'Question':marker.kind==='explain'?'Explain again':'Idea'}</b><span className="card-chevron">↗</span></div><p>{marker.body}</p><footer>{marker.author}<i> · </i>Slide {marker.slide+1}{!!marker.resolved&&' · Resolved'}</footer></button></div>)}</div>{activeMarker&&<article className="marker-browser-detail"><span className="eyebrow">SLIDE {activeMarker.slide+1} · {activeMarker.resolved?'RESOLVED':'OPEN'}</span><h3>{activeMarker.kind==='question'?'Question':activeMarker.kind==='explain'?'Explain again':'Idea'}</h3><p>{activeMarker.body}</p><small>{activeMarker.author}</small>{activeMarker.replies.map((reply,i)=><blockquote key={i}>{reply}</blockquote>)}{!activeMarker.replies.length&&<p className="quiet">No replies yet.</p>}<a className="outline" {...link(editor(markerDeck.id,activeMarker.slide))}>Open this slide</a><nav className="marker-browser-nav" aria-label="Browse markers"><button className="outline" disabled={!markerIndex} onClick={()=>setMarkerIndex(i=>i-1)}>← Previous</button><span>{markerIndex+1} / {markers.length}</span><button className="outline" disabled={markerIndex===markers.length-1} onClick={()=>setMarkerIndex(i=>i+1)}>Next →</button></nav></article>}</div>:<p>No saved markers yet.</p>}</section></div>}
 
     {creating&&<div className="modal-backdrop" onClick={()=>setCreating(false)}><section className="modal creation-picker" role="dialog" aria-modal="true" aria-label="New presentation" onClick={event=>event.stopPropagation()}>
       <button className="modal-close" aria-label="Close new presentation" onClick={()=>setCreating(false)}>×</button>
@@ -216,7 +260,7 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
     {viewer&&<div className="modal-backdrop" onClick={()=>setViewer(null)}><section className="modal slides-viewer" role="dialog" aria-modal="true" aria-label={'Slides of '+viewer.title} onClick={event=>event.stopPropagation()}>
       <header className="viewer-head"><div><span className="eyebrow">{[viewer.className,viewer.unit,viewer.topic].filter(Boolean).join(' / ')||'PRESENTATION'}</span><h2>{viewer.title}</h2></div>
         <span className="viewer-count">{viewerIndex+1} / {viewer.slides.length}</span>
-        <a className="primary" href={editor(viewer.id,viewerIndex)}>Open at slide {viewerIndex+1}</a>
+        <a className="primary" {...link(editor(viewer.id,viewerIndex))}>Open at slide {viewerIndex+1}</a>
         <button className="modal-close" aria-label="Close slides" onClick={()=>setViewer(null)}>×</button></header>
       <div className="viewer-body">
         <nav className="viewer-rail" aria-label="Jump to a slide">{viewer.slides.map((_,i)=><button key={i} aria-current={i===viewerIndex} aria-label={'Slide '+(i+1)} onClick={()=>scroller.current?.dispatchEvent(new CustomEvent('viewer-jump',{detail:i}))}>{i+1}{viewer.lastSession?.bySlide[i]?<i title={viewer.lastSession.bySlide[i]+' questions from class'}/>:null}</button>)}</nav>
@@ -228,7 +272,7 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
             {exampleMarker&&exampleMarker.slide===i&&<section className="sample-marker-thread"><strong>Example student marker</strong><p>{exampleMarker.body}</p><strong>Teacher follow-up</strong><p>{exampleMarker.response}</p></section>}
             {slide.notes&&<p className="viewer-notes"><b>Your notes</b>{slide.notes}</p>}
           </article>)}
-          <p className="viewer-end">End of the deck. <a href={editor(viewer.id)}>Open it to edit or teach →</a></p>
+          <p className="viewer-end">End of the deck. <a {...link(editor(viewer.id))}>Open it to edit or teach →</a></p>
         </div>
       </div>
     </section></div>}
@@ -238,13 +282,13 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
       <span className="eyebrow">AFTER CLASS · {ago(review.lastSession.at).toUpperCase()}</span><h2>{review.title}</h2>
       <p className="review-sum"><b>{review.lastSession.total}</b> question{review.lastSession.total===1?'':'s'} · <b>{review.lastSession.open}</b> left open · room {review.lastSession.room}</p>
       <div className="review-bars" role="img" aria-label="Questions per slide">{review.slides.map((slide,i)=><div key={i} title={'Slide '+(i+1)+': '+(review.lastSession!.bySlide[i]||0)+' questions'}><i style={{height:Math.round(100*(review.lastSession!.bySlide[i]||0)/peak)+'%'}}/><span>{i+1}</span></div>)}</div>
-      <div className="review-list">{review.lastSession.total===0?<p className="library-empty">No one placed a marker in this class.</p>:review.slides.map((slide,i)=>{const here=review.lastSession!.questions.filter(q=>q.slide===i);return here.length?<section key={i}><h3><a href={editor(review.id,i)}>Slide {i+1} · {slide.title.replace(/\n/g,' ')}</a><span>{here.length}</span></h3>
+      <div className="review-list">{review.lastSession.total===0?<p className="library-empty">No one placed a marker in this class.</p>:review.slides.map((slide,i)=>{const here=review.lastSession!.questions.filter(q=>q.slide===i);return here.length?<section key={i}><h3><a {...link(editor(review.id,i))}>Slide {i+1} · {slide.title.replace(/\n/g,' ')}</a><span>{here.length}</span></h3>
         {here.map((q,n)=><div className={'review-q'+(q.resolved?' done':'')} key={n}><p>{q.body}</p><small>{q.author} · {q.resolved?'answered':'still open'}</small>{q.replies.map((r,k)=><blockquote key={k}>{r}</blockquote>)}</div>)}</section>:null})}</div>
-      <div className="preview-controls"><a className="primary" href={editor(review.id)}>Open presentation</a><button className="outline" disabled={!review.lastSession.total} onClick={()=>questionsFile(review)}>Save the questions</button></div>
+      <div className="preview-controls"><a className="primary" {...link(editor(review.id))}>Open presentation</a><button className="outline" disabled={!review.lastSession.total} onClick={()=>questionsFile(review)}>Save the questions</button></div>
     </section></div>}
 
     {edit&&<div className="modal-backdrop"><section className="modal" role="dialog" aria-modal="true" aria-label="Presentation details"><button className="modal-close" aria-label="Close details" onClick={()=>setEdit(null)}>×</button><h2>Title and class</h2>
-      <form onSubmit={event=>{event.preventDefault();const isNew=!decks.some(deck=>deck.id===edit.id);void update(async()=>{await savePresentation({...edit,title:edit.title.trim(),updated:Date.now()});setEdit(null);if(isNew)location.assign(editor(edit.id))})}}>
+      <form onSubmit={event=>{event.preventDefault();const isNew=!decks.some(deck=>deck.id===edit.id);void update(async()=>{await savePresentation({...edit,title:edit.title.trim(),updated:Date.now()});setEdit(null);if(isNew)go(editor(edit.id))})}}>
         <label>Title<input required value={edit.title} maxLength={100} onChange={event=>setEdit({...edit,title:event.target.value})}/></label>
         {groups.map(([key,label])=><label key={key}>{label}<input value={edit[key]} maxLength={80} placeholder={key==='className'?'e.g. AP Chemistry, period 3':key==='unit'?'e.g. Unit 7':'e.g. Equilibrium'} onChange={event=>setEdit({...edit,[key]:event.target.value})}/></label>)}
         <button className="primary full" disabled={busy||!edit.title.trim()}>Save presentation</button>
