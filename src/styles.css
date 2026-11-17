@@ -1747,6 +1747,7 @@ html.cramming { overflow: hidden; }
   .bpage { border-right: 1px solid var(--line); border-radius: 0 0 18px 18px; padding: 20px 16px 18px 46px; min-height: 0; }
   .bpage::before { width: 30px; } .brings { left: 6px; } .bpage::after { display: none; }
   .bgrid { grid-template-columns: 1fr; }
+  .blive { flex-wrap: wrap; } .blive div { flex-basis: calc(100% - 30px); } .blive span { white-space: normal; } .blive .btn { width: 100%; text-align: center; }
   .bcodein { font-size: 22px; letter-spacing: .2em; }
 }
 @media (prefers-reduced-motion: reduce) { .bpulse, .lnpulse, .bdot { animation: none; } .btab { transition: none; } }
