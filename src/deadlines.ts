@@ -40,8 +40,13 @@ async function save(d: Deadline) {
   const rest = (state.meta.deadlines || []).filter(x => x.id !== d.id);
   await putMeta({ deadlines: mergeDeadlines(rest, [d]) }); // putMeta writes the change and its upload entry in one transaction
 }
-export const addDeadline = (title: string, date: string, courseId: string | null = null) =>
-  DATE.test(date) && title.trim() ? save({ id: uid(), title: title.trim().slice(0, 120), date, courseId, done: false, deleted: false, updatedAt: Date.now() }) : Promise.resolve();
+/** Adds a deadline. Resolves with its id (null if the title or date was unusable), so it can be undone. */
+export async function addDeadline(title: string, date: string, courseId: string | null = null): Promise<string | null> {
+  if (!DATE.test(date) || !title.trim()) return null;
+  const id = uid();
+  await save({ id, title: title.trim().slice(0, 120), date, courseId, done: false, deleted: false, updatedAt: Date.now() });
+  return id;
+}
 export const setDeadlineDone = (id: string, done: boolean) => { const d = liveDeadlines().find(x => x.id === id); return d ? save({ ...d, done, updatedAt: Date.now() }) : Promise.resolve(); };
 export const removeDeadline = (id: string) => { const d = liveDeadlines().find(x => x.id === id); return d ? save({ ...d, deleted: true, updatedAt: Date.now() }) : Promise.resolve(); };
 

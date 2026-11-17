@@ -1774,29 +1774,32 @@ html.cramming { overflow: hidden; }
 
 /* Wide displays: the page grows with the screen so it fills most of it (it stopped at 800px, about half a laptop).
    The text grows a step with it so lines stay a comfortable length to read. Upright tablets already fill. */
-@media (min-width: 1000px) { .paper { max-width: min(1560px, 78vw); } .paper .body p { max-width: none; } }
+/* The page is the screen: full width less a small gutter (room for Return to dial to stick out), and at least the
+   screen's height, at every size. */
+.paper { max-width: min(1800px, calc(100% - 2 * clamp(4px, 2.4vw, 40px))); min-height: 100%; box-sizing: border-box; }
+@media (min-width: 900px) { .paper .body p { max-width: none; } }
 @media (min-width: 1440px) { .paper .body { font-size: 18.5px; } .paper { padding-left: clamp(48px, 5vw, 96px); padding-right: clamp(48px, 5vw, 96px); } }
 @media (min-width: 1700px) { .paper .body { font-size: 20px; } }
 @media (min-width: 2200px) { .paper .body { font-size: 22px; } }
 
 /* ---------- Recall: the slip on the left edge and the sheet it pulls out (home.ts, "the recall slip") ---------- */
-.rslip { position: fixed; left: 0; top: 50%; z-index: 820; translate: 0 -50%; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 46px; padding: 14px 0 16px 4px; border: 0; border-radius: 0 18px 18px 0; color: #fff; background: linear-gradient(180deg, var(--g6), var(--g7)); box-shadow: 6px 10px 26px -10px color-mix(in srgb, var(--g7) 70%, transparent), inset -2px 0 0 rgba(255, 255, 255, .18); cursor: pointer; transition: width .3s cubic-bezier(.2, .9, .3, 1.3), opacity .3s, translate .3s; }
+.rslip { position: fixed; left: 0; top: 50%; z-index: 820; translate: 0 -50%; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 14px; width: 50px; min-height: clamp(180px, 30vh, 260px); padding: 16px 0 20px 4px; border: 0; border-radius: 0 18px 18px 0; color: #fff; background: linear-gradient(180deg, var(--g6), var(--g7)); box-shadow: 6px 10px 26px -10px color-mix(in srgb, var(--g7) 70%, transparent), inset -2px 0 0 rgba(255, 255, 255, .18); cursor: pointer; transition: width .3s cubic-bezier(.2, .9, .3, 1.3), opacity .3s, translate .3s; }
 .rslip::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 4px; border-radius: 0 3px 3px 0; background: rgba(255, 255, 255, .35); }
 .rslip-n { font: 800 17px/1 var(--display); min-width: 28px; padding: 6px 0; border-radius: 99px; background: rgba(255, 255, 255, .22); text-align: center; }
-.rslip-l { writing-mode: vertical-rl; rotate: 180deg; font: 700 12px var(--mono); letter-spacing: .2em; text-transform: uppercase; }
+.rslip-l { flex: 1; display: flex; align-items: center; writing-mode: vertical-rl; rotate: 180deg; font: 700 13px var(--mono); letter-spacing: .32em; text-transform: uppercase; }
 .rslip-bubble { position: absolute; left: calc(100% + 12px); top: 50%; translate: -8px -50%; white-space: nowrap; background: var(--ink); color: var(--paper); font: 600 13px var(--display); padding: 8px 12px; border-radius: 12px; opacity: 0; pointer-events: none; transition: opacity .25s, translate .3s; box-shadow: var(--shadow); }
 .rslip-bubble::before { content: ""; position: absolute; right: 100%; top: 50%; translate: 0 -50%; border: 6px solid transparent; border-right-color: var(--ink); }
 .rslip-wave { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
 /* while something is due it bobs out from the edge every few seconds, with a ripple off its edge */
 .rslip[data-state="due"] { animation: slipbob 6.5s cubic-bezier(.4, 0, .3, 1) infinite; }
 .rslip[data-state="due"] .rslip-wave { animation: slipwave 6.5s ease-out infinite; }
-@keyframes slipbob { 0%, 74%, 100% { transform: none; } 78% { transform: translate(9px, -10px) scaleY(1.05); } 82% { transform: translate(3px, 6px) scaleY(.97); } 86% { transform: translate(7px, -4px); } 90% { transform: translate(1px, 2px); } }
-@keyframes slipwave { 0%, 76% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--g7) 55%, transparent); } 92%, 100% { box-shadow: 0 0 0 18px transparent; } }
+@keyframes slipbob { 0%, 76%, 100% { transform: none; } 80% { transform: translate(4px, -4px); } 84% { transform: translate(1px, 2px); } 88% { transform: translate(3px, -1px); } 92% { transform: none; } }
+@keyframes slipwave { 0%, 78% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--g7) 22%, transparent); } 94%, 100% { box-shadow: 0 0 0 6px transparent; } }
 .rslip.hello { width: 58px; translate: 0 -50%; animation: none; }
 .rslip.hello .rslip-bubble { opacity: 1; translate: 0 -50%; }
 @media (hover: hover) { .rslip:not(:disabled):hover { width: 56px; } .rslip:not(:disabled):hover .rslip-bubble { opacity: 1; translate: 0 -50%; } }
 .rslip:focus-visible { outline: 3px solid var(--cobalt); outline-offset: 3px; }
-.rslip:disabled { cursor: default; width: 34px; padding: 10px 0 12px 2px; background: color-mix(in srgb, var(--muted) 30%, var(--paper)); color: var(--muted); box-shadow: none; opacity: .75; }
+.rslip:disabled { cursor: default; width: 34px; min-height: clamp(120px, 20vh, 170px); padding: 10px 0 12px 2px; background: color-mix(in srgb, var(--muted) 30%, var(--paper)); color: var(--muted); box-shadow: none; opacity: .75; }
 .rslip:disabled .rslip-n { background: none; font-size: 14px; padding: 2px 0; }
 .rslip:disabled .rslip-l { font-size: 10px; }
 .rslip.out { opacity: 0; translate: -20px -50%; pointer-events: none; }
@@ -1849,3 +1852,55 @@ body:has(.rsback) .livenotice { display: none; } /* recall has the screen; the l
   .rscard { padding: 20px 18px 22px; }
 }
 @media (max-width: 520px) { .rslip { width: 38px; } .rslip-n { min-width: 24px; font-size: 15px; } }
+
+/* ---------- Voice (src/voice.ts) ---------- */
+/* recall: say it back */
+.ransrow { display: flex; gap: 8px; width: 100%; align-items: stretch; }
+.ransrow .rans { flex: 1; min-width: 0; }
+.rmic { flex: none; width: 52px; border-radius: 14px; border: 1.5px solid color-mix(in srgb, var(--hc) 40%, var(--line)); background: color-mix(in srgb, var(--hc) 8%, var(--paper)); color: var(--hc); display: grid; place-items: center; cursor: pointer; position: relative; }
+.rmic svg { width: 22px; height: 22px; }
+.rmic[aria-pressed="true"] { background: var(--hc); color: #fff; border-color: var(--hc); }
+.rmic[aria-pressed="true"]::after { content: ""; position: absolute; inset: -5px; border-radius: 18px; border: 2px solid var(--hc); opacity: .5; animation: micring 1.3s ease-out infinite; }
+@keyframes micring { to { inset: -12px; opacity: 0; } }
+.rscard.listening .rans { border-style: dashed; }
+.rbeads { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; opacity: .35; transition: opacity .3s; }
+.rbeads.on, .rscard.listening .rbeads { opacity: 1; }
+.rbeads i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--hc) 55%, var(--line)); transition: background .25s, border-color .25s; }
+.rbeads i.hit { background: var(--good); border-color: var(--good); }
+.rbeads small { margin-left: 6px; font: 12px var(--mono); color: var(--muted); }
+.rsacts { display: flex; align-items: center; gap: 8px; }
+.rsloud { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font: 600 13px var(--display); cursor: pointer; }
+.rsloud svg { width: 18px; height: 18px; }
+.rsloud[aria-pressed="true"] { background: var(--hc); border-color: var(--hc); color: #fff; }
+@media (max-width: 520px) { .rsloud span { display: none; } .rsloud { padding: 0 11px; } }
+
+/* calendar: say it */
+.vbar { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 10px; padding: 9px 12px; border-radius: 14px; border: 1px dashed color-mix(in srgb, var(--cobalt) 45%, var(--line)); background: color-mix(in srgb, var(--cobalt) 7%, var(--paper)); color: var(--ink); cursor: pointer; text-align: left; }
+.vmic { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--cobalt); color: var(--oncobalt); position: relative; }
+.vmic svg { width: 18px; height: 18px; }
+.vtxt { display: flex; flex-direction: column; min-width: 0; }
+.vtxt b { font: 700 13.5px var(--display); }
+.vtxt small { font: 12px var(--serif); font-style: italic; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vbar.on { border-style: solid; border-color: var(--cobalt); }
+.vbar.on .vmic::after, .calchip.holding::after { content: ""; position: absolute; inset: -4px; border-radius: inherit; border: 2px solid var(--cobalt); animation: micring 1.2s ease-out infinite; }
+.calchip.holding { border-color: var(--cobalt); background: color-mix(in srgb, var(--cobalt) 12%, var(--paper)); }
+.vheard { margin: -2px 0 10px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--cobalt) 6%, var(--paper)); border: 1px solid var(--line); animation: pop .25s ease-out; }
+.vheard:empty { display: none; }
+.vsaid { margin: 0 0 6px; font: italic 14px/1.4 var(--serif); color: var(--muted); }
+.vsaid:empty { display: none; }
+.vparse { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.vparse b { font: 700 14px var(--display); margin-right: 2px; }
+.vday { font: 600 12px var(--mono); padding: 2px 8px; border-radius: 99px; background: var(--cobalt); color: var(--oncobalt); }
+.vday.none { background: none; border: 1px dashed var(--muted); color: var(--muted); }
+.vcourse { font: 600 11px var(--mono); padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--ink); }
+.vdone { margin-top: 6px; font: 600 12.5px var(--display); color: var(--good); display: flex; gap: 8px; align-items: center; }
+.vheard[data-state="nodate"] .vdone, .vheard[data-state="nothing"] .vdone { color: var(--muted); }
+.vhold { position: fixed; z-index: 960; width: 320px; max-width: calc(100vw - 16px); background: var(--paper); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 20px 50px -18px rgba(10, 8, 30, .45); padding: 4px; transition: opacity .3s, translate .3s; }
+.vhold .vheard { margin: 0; border: 0; }
+.vhold.gone { opacity: 0; translate: 0 -6px; pointer-events: none; }
+/* the day something was just said onto: a dot drops in and the cell rings once */
+.cday.landed { animation: landday .9s cubic-bezier(.2, .9, .3, 1.3); border-color: var(--cobalt); }
+.cday.landed .cdots i:last-child { animation: landdot .7s cubic-bezier(.2, .9, .3, 1.4); }
+@keyframes landday { 0% { transform: scale(1); box-shadow: 0 0 0 0 color-mix(in srgb, var(--cobalt) 50%, transparent); } 30% { transform: scale(1.18); } 100% { transform: none; box-shadow: 0 0 0 12px transparent; } }
+@keyframes landdot { from { transform: translateY(-18px) scale(1.8); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .cday.landed, .cday.landed .cdots i, .rmic::after, .vmic::after, .calchip.holding::after { animation: none !important; } }
