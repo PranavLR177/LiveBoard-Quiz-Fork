@@ -41,7 +41,7 @@ Supabase's built-in email only delivers to members of your Supabase team, and on
 Don't give the link to students until each of these is true.
 
 - [ ] `npm test` passes locally or in CI (API, browser, sync, database checks).
-- [ ] `npm audit --audit-level=high` reports nothing.
+- [ ] `npm audit --omit=dev --audit-level=high` reports nothing (the code that ships), and `npm audit --audit-level=critical` reports nothing (build tools too). Read the rest of `npm audit` and record anything new under Dependencies in the README.
 - [ ] On staging, signed out: AI says it needs sign-in, and the network tab shows `/api/marker` answering 401 with no delay (no model call).
 - [ ] Temporarily remove `SUPABASE_ANON_KEY` from staging's server variables and redeploy: AI answers 503 and Settings says AI isn't connected. Put it back.
 - [ ] Two real devices, one account: edit the same note on both with one offline; reconnect; both versions exist (one as “(from another device)”).

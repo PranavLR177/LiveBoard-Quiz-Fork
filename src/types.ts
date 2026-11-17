@@ -78,7 +78,10 @@ export interface Marker {
 }
 
 /** A dated thing the person added to their calendar. Synced inside the profile and merged per item (src/deadlines.ts). */
-export interface Deadline { id: string; title: string; date: string; courseId?: string | null; done?: boolean; deleted?: boolean; updatedAt: number }
+/** Something on the calendar. Most are deadlines; the rest say what they are. Older copies have no kind (a deadline). */
+export type EntryKind = "deadline" | "exam" | "event" | "study" | "note";
+export interface Deadline { id: string; title: string; date: string; courseId?: string | null; done?: boolean; deleted?: boolean; updatedAt: number;
+  kind?: EntryKind; time?: string | null; repeat?: "weekly" | null; noteId?: string | null }
 
 export interface Meta {
   key: "meta";
