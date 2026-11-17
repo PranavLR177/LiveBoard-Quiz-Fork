@@ -1,6 +1,7 @@
 import DOMPurify from "dompurify";
 import { PIC_SRC } from "./editor/picture";
 import { course, note, state } from "./store";
+import { cleanFolder } from "./home/folderLook";
 import type { Course, Marker, Note, ThreadMsg } from "./types";
 
 /*
@@ -88,7 +89,7 @@ export function validateBackup(text: string): ValidBackup {
     const code = typeof c.classCode === "string" && /^[A-Z0-9]{4,8}$/.test(c.classCode) ? c.classCode : null;
     const classId = typeof c.classId === "string" && /^[0-9a-f-]{36}$/i.test(c.classId) ? c.classId : null;
     const exam = typeof c.examDate === "string" && /^\d{4}-\d\d-\d\d$/.test(c.examDate) ? c.examDate : null;
-    return { id: unique(id(c.id, `Course ${i + 1}`), "A course"), name: str(c.name, 32, `Course ${i + 1}'s name`)!.toUpperCase() || "COURSE", color, classId, classCode: code, examDate: exam, updatedAt: num(c.updatedAt, "A course date", Date.now()), deleted: !!c.deleted };
+    return { id: unique(id(c.id, `Course ${i + 1}`), "A course"), name: str(c.name, 32, `Course ${i + 1}'s name`)!.toUpperCase() || "COURSE", color, classId, classCode: code, examDate: exam, folder: cleanFolder(c.folder), updatedAt: num(c.updatedAt, "A course date", Date.now()), deleted: !!c.deleted };
   });
   const courseIds = new Set(courses.map(c => c.id));
   const fallbackCourse = courses[0]?.id || [...state.courses.keys()][0] || null;

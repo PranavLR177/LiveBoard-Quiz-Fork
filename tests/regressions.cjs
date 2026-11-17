@@ -603,6 +603,50 @@ const BASE = process.env.BASE || "http://localhost:4173";
     await c5.close();
   }
 
+  // your own folders on the dial: made from the hub, with a colour, background and mark; they sit just left of the
+  // pointer, outside the run of time, hold the notes in their course, and can be changed or taken off again
+  {
+    const c5 = await b.newContext({ viewport: { width: 1366, height: 850 }, serviceWorkers: "block" });
+    await c5.addInitScript(() => { try { localStorage.setItem("liveboard-role", "individual"); } catch {} });
+    const f = await c5.newPage();
+    f.on("pageerror", e => errs.push("pageerror: " + e.message));
+    await f.route(/fonts\.(googleapis|gstatic)\.com/, x => x.abort());
+    await f.route("**/api/marker", x => x.fulfill({ json: { ai: false } }));
+    await f.goto(BASE); await f.waitForSelector(".fcard"); await f.waitForTimeout(800);
+    await f.click('.hbtn[data-act="folder"]'); await f.waitForSelector(".fedit");
+    await f.fill("#feNameIn", "Recipes"); await f.click('.fe-sw[data-color="#FF9F1C"]'); await f.click('.fe-bg[data-bg="dots"]'); await f.click('.fe-ic[data-icon="☕"]');
+    ok(await f.$eval("#fePrev", e => e.dataset.bg) === "dots" && await f.textContent("#feName") === "Recipes" && await f.textContent("#feTabIcon") === "☕", "the folder maker shows a live preview of the name, background and mark");
+    await f.click("#feSave"); await f.waitForSelector(".folder.mine"); await f.mouse.move(5, 840); await f.waitForTimeout(900);
+    const mine = await f.$eval(".folder.mine", e => ({ bg: e.dataset.bg, name: e.querySelector(".ffront b").textContent, icon: e.querySelector(".ftab i")?.textContent, color: e.style.getPropertyValue("--fc") }));
+    ok(mine.name === "Recipes" && mine.bg === "dots" && mine.icon === "☕" && /ff9f1c/i.test(mine.color), "a new folder appears on the dial with its name, colour, background and mark (" + JSON.stringify(mine) + ")");
+    const where = await f.evaluate(() => { const d = document.querySelector("#dial").getBoundingClientRect(), r = document.querySelector(".folder.mine").getBoundingClientRect(); return { mid: Math.abs(r.left + r.width / 2 - (d.left + d.width / 2)) < 12, top: r.top + r.height / 2 < d.top + d.height / 3 }; });
+    ok(where.mid && where.top && /Empty/.test(await f.textContent("#info")), "the dial turns to the new folder under the pointer, and the hub says it is empty");
+    await f.click("#hubNewIn"); await f.waitForSelector(".ProseMirror"); await f.waitForTimeout(300);
+    await f.keyboard.type("Pancakes"); await f.waitForTimeout(500);
+    ok(/RECIPES/.test(await f.$eval("#courseSel", e => e.options[e.selectedIndex].text)), "New note here starts the note inside the folder");
+    await f.click("#backBtn"); await f.waitForSelector(".folder.mine"); await f.waitForTimeout(1200);
+    ok(/1 note/.test(await f.textContent(".folder.mine .ffront")) && !(await f.$$eval(".folder:not(.mine):not(.loose) .file", fs => fs.length)), "the note lives in the folder, not in a time folder");
+    await f.reload(); await f.waitForSelector(".folder.mine"); await f.waitForTimeout(800);
+    ok(await f.$eval(".folder.mine", e => e.dataset.bg) === "dots", "the folder and its look are saved");
+    // change its look, then take it off the dial: its notes go back to the run of time
+    await f.focus("#dial");
+    for (let i = 0; i < 6 && !(await f.$("#hubLook")); i++) { await f.keyboard.press("ArrowLeft"); await f.waitForTimeout(400); }
+    ok(!!(await f.$("#hubLook")), "spinning back from now (left arrow) reaches the folder");
+    await f.click("#hubLook"); await f.waitForSelector(".fedit");
+    await f.click('.fe-bg[data-bg="stripes"]'); await f.click("#feSave"); await f.mouse.move(5, 840); await f.waitForTimeout(900);
+    ok(await f.$eval(".folder.mine", e => e.dataset.bg) === "stripes", "Customize changes an existing folder");
+    await f.click("#hubLook"); await f.waitForSelector(".fedit");
+    ok(/Take off the dial/.test(await f.textContent("#feRemove")), "a folder with notes in it is taken off the dial, not deleted");
+    await f.click("#feRemove"); await f.waitForTimeout(900);
+    ok(!(await f.$(".folder.mine")) && await f.evaluate(() => [...document.querySelectorAll("#folders .file")].some(x => /Pancakes|Untitled/.test(x.textContent))), "taking it off puts its notes back in the run of time");
+    await f.click('.hbtn[data-act="folder"]'); await f.fill("#feNameIn", "Scratch"); await f.click("#feSave"); await f.waitForSelector(".folder.mine"); await f.mouse.move(5, 840); await f.waitForTimeout(900);
+    await f.click("#hubLook"); await f.waitForSelector("#feRemove");
+    ok(/Delete folder/.test(await f.textContent("#feRemove")), "an empty folder can simply be deleted");
+    await f.click("#feRemove"); await f.waitForTimeout(700);
+    ok(!(await f.$(".folder.mine")), "and it is gone from the dial");
+    await c5.close();
+  }
+
   await b.close();
   console.log(errs.length ? "\nFAILURES:\n" + errs.join("\n") : "\nALL REGRESSIONS PASS");
   process.exit(errs.length ? 1 : 0);

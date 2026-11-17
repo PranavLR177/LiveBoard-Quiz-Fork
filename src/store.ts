@@ -325,10 +325,10 @@ export async function applyRemoteMeta(patch: Partial<Meta>) {
 }
 
 /* ---------- creation ---------- */
-export async function newCourse(name: string) {
+export async function newCourse(name: string, look?: { color?: string; folder?: Course["folder"] }) {
   const used = liveCourses().map(c => c.color);
-  const color = COURSE_COLORS.find(c => !used.includes(c)) || COURSE_COLORS[liveCourses().length % COURSE_COLORS.length];
-  const c: Course = { id: uid(), name: name.trim().slice(0, 32).toUpperCase(), color, updatedAt: Date.now() };
+  const color = look?.color || COURSE_COLORS.find(c => !used.includes(c)) || COURSE_COLORS[liveCourses().length % COURSE_COLORS.length];
+  const c: Course = { id: uid(), name: name.trim().slice(0, 32).toUpperCase(), color, updatedAt: Date.now(), ...(look?.folder ? { folder: look.folder } : {}) };
   await putCourse(c);
   return c;
 }

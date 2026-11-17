@@ -1611,3 +1611,52 @@ html.cramming { overflow: hidden; }
   .dialwrap .spinrow:hover, .dialwrap .follow:hover { transform: none !important; opacity: 1 !important; }
 }
 @media (prefers-reduced-motion: reduce) { .morning, .spinrow, .follow { transition: none; } }
+
+/* ---------- Your folders on the dial (src/home/folders.ts): your colour, a background and a mark on the tab ---------- */
+.hbtn[data-act="folder"] { --hb: var(--g4); }
+.folder[data-bg] .ffront, .folder[data-bg] .fback, .folder[data-bg] .ftab { background-color: var(--fc); }
+.folder[data-bg] .fback, .folder[data-bg] .ftab { background-color: color-mix(in srgb, var(--fc) 72%, #000 28%); }
+.folder[data-bg="dots"] .ffront { background-image: radial-gradient(color-mix(in srgb, var(--ft) 22%, transparent) 1.2px, transparent 1.6px); background-size: .9em .9em; }
+.folder[data-bg="stripes"] .ffront { background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ft) 13%, transparent) 0 .35em, transparent .35em .8em); }
+.folder[data-bg="grid"] .ffront { background-image: linear-gradient(color-mix(in srgb, var(--ft) 14%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--ft) 14%, transparent) 1px, transparent 1px); background-size: 1em 1em; }
+.folder[data-bg="waves"] .ffront { background-image: radial-gradient(circle at 50% 0, transparent .55em, color-mix(in srgb, var(--ft) 14%, transparent) .6em .72em, transparent .76em); background-size: 1.4em .8em; }
+.folder[data-bg="glow"] .ffront { background-image: radial-gradient(120% 90% at 18% 0%, color-mix(in srgb, #fff 42%, transparent), transparent 60%), linear-gradient(160deg, transparent 40%, color-mix(in srgb, #000 22%, transparent)); }
+.folder .ftab i { position: absolute; left: 0; right: 0; top: .08em; text-align: center; font: 700 .95em/1.2 var(--display); font-style: normal; color: var(--ft); }
+.folder.mine .ffront { box-shadow: 0 1px 0 rgba(255, 255, 255, .25) inset, 0 0 0 1.5px color-mix(in srgb, var(--ft) 25%, transparent) inset; }
+.minebtns { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 6px; }
+.mineempty { font-size: 12px; max-width: 24ch; text-align: center; color: var(--muted); }
+
+/* the folder maker */
+.fedit-back { position: fixed; inset: 0; z-index: 900; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--desk) 60%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); overflow: auto; }
+.fedit { width: min(640px, 100%); background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 22px; padding: 22px; box-shadow: 0 30px 80px -24px rgba(8, 8, 30, .55); animation: crin .28s cubic-bezier(.2, .9, .25, 1); }
+.fedit h2 { margin: 0 0 14px; font: 700 22px var(--display); letter-spacing: -.01em; }
+.fedit-body { display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: start; }
+.fedit-preview { display: grid; place-items: center; min-height: 190px; border-radius: 16px; background: color-mix(in srgb, var(--ink) 4%, var(--desk)); padding-top: 18px; }
+.fedit-preview .folder { position: relative; --W: 160px; transform: none !important; }
+.fedit-preview .file { position: absolute; left: 8%; right: 8%; top: 4%; height: 70%; border-radius: .5em; background: var(--paper); border: 1px solid var(--line); transform: translateY(calc(var(--k) * -.6em)) rotate(calc(var(--k) * 2deg)); }
+.fedit fieldset { border: 0; padding: 0; margin: 12px 0 0; }
+.fedit legend { font-size: 13px; color: var(--muted); margin-bottom: 6px; padding: 0; }
+.fedit .field input { border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font: 15px var(--display); padding: 9px 12px; }
+.fe-swatches, .fe-bgs, .fe-icons { display: flex; flex-wrap: wrap; gap: 7px; }
+.fe-sw { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--paper); background: var(--c); box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; position: relative; }
+.fe-sw[aria-checked="true"], .fe-custom.on { box-shadow: 0 0 0 2px var(--ink); }
+.fe-custom { background: conic-gradient(#FF5D8F, #FFD23F, #2EC4B6, #3A86FF, #8338EC, #FF5D8F); overflow: hidden; }
+.fe-custom.on { background: var(--c); }
+.fe-custom input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; border: 0; padding: 0; }
+.fe-bg { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 99px; padding: 4px 11px 4px 4px; font: 600 12px var(--display); cursor: pointer; }
+.fe-bg[aria-checked="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.fe-bgchip { width: 22px; height: 22px; border-radius: 50%; --fc: var(--c); --ft: #fff; background-color: var(--c); }
+.fe-bgchip[data-bg="dots"] { background-image: radial-gradient(rgba(255,255,255,.55) 1.1px, transparent 1.5px); background-size: 6px 6px; }
+.fe-bgchip[data-bg="stripes"] { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.35) 0 3px, transparent 3px 7px); }
+.fe-bgchip[data-bg="grid"] { background-image: linear-gradient(rgba(255,255,255,.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.4) 1px, transparent 1px); background-size: 6px 6px; }
+.fe-bgchip[data-bg="waves"] { background-image: radial-gradient(circle at 50% 0, transparent 3px, rgba(255,255,255,.45) 3.5px 4.5px, transparent 5px); background-size: 9px 6px; }
+.fe-bgchip[data-bg="glow"] { background-image: radial-gradient(120% 90% at 20% 0%, rgba(255,255,255,.6), transparent 60%); }
+.fe-ic { width: 32px; height: 32px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 9px; font: 600 15px var(--display); cursor: pointer; padding: 0; }
+.fe-ic[aria-checked="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.fedit > .muted { margin: 14px 0 0; }
+.fedit-acts { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.fedit-acts span { flex: 1; }
+.btn.danger-quiet { color: var(--bad); border-color: transparent; background: none; padding-left: 0; }
+.fedit :is(button, input):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+@media (hover: hover) { .fe-bg:hover, .fe-ic:hover { border-color: var(--ink); } }
+@media (max-width: 560px) { .fedit-body { grid-template-columns: 1fr; } .fedit-preview { min-height: 150px; } .fedit { padding: 18px; } }

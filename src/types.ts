@@ -1,6 +1,10 @@
 export type MarkerType = "note" | "question" | "explain" | "math" | "visual" | "link" | "reminder";
 export type Mastery = 0 | 1 | 2; // unsure, getting it, mastered
 
+/** How a folder you made looks on the dial. Its colour is the course's own colour. */
+export type FolderBg = "plain" | "dots" | "stripes" | "grid" | "waves" | "glow";
+export interface FolderLook { bg: FolderBg; icon: string; at: number }
+
 export interface Course {
   id: string;
   name: string;
@@ -8,6 +12,8 @@ export interface Course {
   classId?: string | null;
   classCode?: string | null;
   examDate?: string | null; // YYYY-MM-DD, used by "remind me before the exam"
+  /** Set when this course or notebook is one of your own folders on the dial (src/home/folders.ts). */
+  folder?: FolderLook | null;
   updatedAt: number;
   rev?: number; // server revision this copy is based on
   deleted?: boolean;
