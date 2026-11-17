@@ -1,40 +1,70 @@
-import type { MyClass } from "../sync";
+import type { ClassPing, MyClass } from "../sync";
 import { classes as src } from "../classSource";
 import { getRole } from "../role";
 import { esc } from "../util";
 import { goLive } from "./classes";
 
 /* When a teacher starts a live lesson for one of your classes, a card slides in at the side of the screen with a
-   button into it. It checks every half minute while LiveBoard is open and looked at, only for a signed-in student.
-   Dismissing it hides that lesson for good on this device; the Classes screen still shows it as live. */
+   button into it. The news is pushed (Supabase Realtime, see subscribeClassPings in src/sync.ts): LiveBoard asks for
+   your classes once when you're signed in as a student, then just listens. It asks once more only when you come back
+   to LiveBoard after a long while away, in case the connection slept through a ping. Dismissing a card hides that
+   lesson for good on this device; the Classes screen still shows it as live. */
 
 const SEEN = "lb-live-dismissed";
+const AWAY = 5 * 60_000; // back after this long: ask once, in case a ping was missed while the connection slept
 const seen = (): string[] => { try { const v = JSON.parse(localStorage.getItem(SEEN) || "[]"); return Array.isArray(v) ? v.filter(x => typeof x === "string") : []; } catch { return []; } };
 const remember = (room: string) => { try { localStorage.setItem(SEEN, JSON.stringify([room, ...seen()].slice(0, 30))); } catch { /* storage blocked */ } };
 
-let timer: ReturnType<typeof setInterval> | null = null, checking = false;
+let started = false, list: MyClass[] = [], unsubscribe: (() => void) | null = null, hiddenAt = 0, asking = false;
+const listeners = new Set<(classes: MyClass[]) => void>();
+
+/** Called with the classes (live lessons and all) whenever a ping changes them. Returns a function that stops it. */
+export function onLiveChange(fn: (classes: MyClass[]) => void) { listeners.add(fn); return () => { listeners.delete(fn); }; }
+/** The classes as last heard. */
+export const knownClasses = () => list;
 
 export function startLiveNotices() {
-  if (timer) return;
-  const tick = () => { if (document.visibilityState === "visible") void check(); };
-  timer = setInterval(tick, 30000);
-  document.addEventListener("visibilitychange", tick);
-  addEventListener("hashchange", () => { if (location.hash === "#classes") show(null); else tick(); });
-  setTimeout(tick, 1500);
+  if (started) return;
+  started = true;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") { hiddenAt = Date.now(); return; }
+    if (hiddenAt && Date.now() - hiddenAt > AWAY) void check(true);
+    hiddenAt = 0;
+  });
+  addEventListener("lb-role-switched", () => void check());
+  addEventListener("hashchange", () => { if (location.hash === "#classes") show(null); else paint(); });
+  void check();
 }
 
-/** Looks now (also used right after signing in). */
-export async function check() {
+/** Starts listening if a student is signed in, and stops if not (called on start-up and after signing in or out).
+ *  `again` asks for the classes even when already listening. */
+export async function check(again = false) {
   await src.ready();
-  if (checking || getRole() !== "student" || !src.signedIn()) { if (getRole() !== "student") show(null); return; }
-  checking = true;
-  try {
-    const list = await src.myClasses();
-    if (!list) return;
-    const off = seen();
-    if (location.hash === "#classes") { show(null); return; } // the Classes screen shows the lesson itself
-    show(list.find(c => c.liveRoom && !off.includes(c.liveRoom)) || null);
-  } finally { checking = false; }
+  if (getRole() !== "student" || !src.signedIn()) { unsubscribe?.(); unsubscribe = null; list = []; show(null); return; }
+  if (unsubscribe && !again) return;
+  if (!unsubscribe) unsubscribe = src.subscribe(ping);
+  await refresh();
+}
+
+async function refresh() {
+  if (asking) return;
+  asking = true;
+  try { const got = await src.myClasses(); if (got) { list = got; tell(); } } finally { asking = false; }
+}
+
+function ping(p: ClassPing) {
+  const c = list.find(x => x.id === p.classId);
+  if (!c) { if (p.type === "live") void refresh(); return; } // a class joined on another device: learn it
+  if (p.type === "live") { c.liveRoom = p.room; c.liveTitle = p.title; } else { c.liveRoom = null; c.liveTitle = null; }
+  tell();
+}
+
+function tell() { paint(); listeners.forEach(fn => fn(list)); }
+
+function paint() {
+  if (getRole() !== "student" || location.hash === "#classes") { show(null); return; } // the Classes screen shows the lesson itself
+  const off = seen();
+  show(list.find(c => c.liveRoom && !off.includes(c.liveRoom)) || null);
 }
 
 function show(c: MyClass | null) {

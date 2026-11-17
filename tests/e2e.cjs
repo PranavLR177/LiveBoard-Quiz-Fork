@@ -198,20 +198,25 @@ const quizAsks = [];
     // recall: jump the clock a day ahead so markers are due
     await p.clock.setSystemTime(Date.now() + 26 * 3600e3);
     await p.reload();
-    await p.waitForSelector("#recallBtn");
+    await p.waitForSelector("#recallSlip");
+    check(await p.evaluate(() => { const s = document.querySelector("#recallSlip"); return s.dataset.state === "due" && s.classList.contains("hello") && getComputedStyle(s).animationName !== "none" || s.classList.contains("hello"); }), "the first open of the day, the recall slip slides out and says what's waiting");
     await p.click("#scopeBtn");
     await p.click(".scope button[data-s='week']");
     await p.waitForTimeout(150);
-    const enabled = await p.isEnabled("#recallBtn");
+    const enabled = await p.isEnabled("#recallSlip");
     check(enabled, "markers come due for recall");
     if (enabled) {
-      await p.click("#recallBtn");
-      await p.waitForSelector("#reveal");
+      check(!(await p.$("#recallBtn")) && await p.isVisible("#recallSlip"), "recall starts from the slip on the left edge, not a button by the dial");
+      await p.click("#recallSlip");
+      await p.waitForSelector("#recallSheet #reveal"); await p.waitForTimeout(800);
+      check(await p.evaluate(() => { const r = document.querySelector("#recallSheet .rspanel").getBoundingClientRect(); return r.left === 0 && r.width > innerWidth * 0.6 && r.width < innerWidth; }), "it pulls a sheet out from the left over most of the screen, with the notes still behind it");
       await p.screenshot({ path: `${OUT}/05-recall.png` });
       let g = 0;
       while ((await p.$("#reveal")) && g++ < 12) { await p.click("#reveal"); await p.click(".racts .got"); await p.waitForTimeout(150); }
-      check(!!(await p.$("#doneBtn")), "recall finishes in the hub");
+      check(!!(await p.$("#recallSheet #doneBtn")), "recall finishes in the sheet");
       await p.click("#doneBtn");
+      await p.waitForSelector("#recallSheet", { state: "detached" });
+      check(await p.isDisabled("#recallSlip"), "done: the sheet slides back and the slip goes quiet");
       check((await p.textContent(".streakchip b")).trim() === "1", "finishing recall starts the streak");
     }
 
@@ -351,8 +356,8 @@ const quizAsks = [];
     await p.click(".mws [data-in='0']");
     await p.click("#mClose");
     await p.click("#backBtn");
-    await p.waitForSelector("#recallBtn:not([disabled])");
-    await p.click("#recallBtn");
+    await p.waitForSelector("#recallSlip:not([disabled])");
+    await p.click("#recallSlip");
     await p.waitForSelector("#rAns");
     await p.fill("#rAns", "markers, you select text and type what you want");
     await p.keyboard.press("Enter");
@@ -365,6 +370,7 @@ const quizAsks = [];
     await p.waitForSelector(".donebig");
     check(true, "pressing 2 grades the answer and finishes recall");
     await p.click("#doneBtn");
+    await p.waitForSelector("#recallSheet", { state: "detached" });
     await p.waitForTimeout(500);
     await p.click("#info .openlink");
     await p.waitForSelector("#editor .pin");

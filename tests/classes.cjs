@@ -19,6 +19,10 @@ const ok = (c, m) => { console.log((c ? "ok   " : "FAIL ") + m); if (!c) errs.pu
   const classes = new FakeClasses(uid => ({ notes: fake.all("notes", uid), markers: fake.all("markers", uid) }), rooms);
   const roomFns = { room_create: "create", room_get: "get", room_screenshot: "shot", room_act: "act" };
   fake.more = (name, body, uid) => roomFns[name] ? rooms[roomFns[name]](body) : classes.rpc(name, body, uid);
+  // pings travel over the faked Realtime socket, only to the class's members (row level security on class_pings)
+  classes.onPing = (type, row) => fake.push("class_pings", type, row, type === "DELETE" ? row : {});
+  fake.canSee = (uid, table, row) => table === "class_pings" && classes.member(uid, row.class_id);
+  const myClassesCalls = () => fake.calls.filter(c => c.endsWith("/rpc/my_classes")).length;
 
   const open = async (role, uid, width = 1300) => {
     const ctx = await b.newContext({ viewport: { width, height: 860 }, serviceWorkers: "block", colorScheme: "light" });
@@ -96,27 +100,38 @@ const ok = (c, m) => { console.log((c ? "ok   " : "FAIL ") + m); if (!c) errs.pu
   await t.click(".work-notes button"); await t.waitForSelector(".work-text");
   ok(/citrate/.test(await t.textContent(".work-text")), "and a note opens to its text, read-only");
 
-  // ---- a live lesson: the teacher tells the class, the student is told
+  // ---- a live lesson: the teacher tells the class and the student is pinged, with nothing polling
+  await s.goto(BASE + "/"); await s.waitForSelector("#dial");
+  for (let i = 0; i < 40 && !fake.listening("class_pings"); i++) await s.waitForTimeout(150);
+  ok(fake.listening("class_pings"), "a signed-in student listens for class pings over Realtime");
   await t.goto(BASE + "/classroom.html?view=library"); await t.waitForSelector(".reel-card");
   await t.click(".deck-open"); await t.waitForSelector(".slide-canvas");
   await t.click("text=Start live lesson"); await t.waitForSelector(".room-code", { timeout: 10000 });
   const room = (await t.textContent(".room-code")).trim();
   await t.waitForSelector(".tell-class button", { timeout: 8000 });
   ok(/AP Biology/.test(await t.textContent(".tell-class")), "the invite offers to tell the teacher's classes, beside the code");
+  ok(!(await s.$("#liveNotice")), "no notice before the teacher tells the class");
+  const before = myClassesCalls();
   await t.click('.tell-class button:has-text("AP Biology")'); await t.waitForSelector('.tell-class button[aria-pressed="true"]');
   ok(rooms.rooms.get(room)?.classId === m.class_id, "telling a class ties the lesson to it on the server");
-
-  await s.goto(BASE + "/"); await s.waitForSelector("#dial");
-  await s.waitForSelector("#liveNotice", { timeout: 6000 });
-  ok((await s.textContent("#liveNotice")).includes("AP Biology"), "the student gets a live notice at the side of the screen");
+  await s.waitForSelector("#liveNotice", { timeout: 4000 });
+  ok((await s.textContent("#liveNotice")).includes("AP Biology"), "the student is pinged at once: a live notice at the side of the screen, no reload");
+  await s.waitForTimeout(3000);
+  ok(myClassesCalls() === before, "and nothing asked the server for it (" + (myClassesCalls() - before) + " extra calls)");
   await s.click("#discussionJoin"); await s.waitForSelector(".btab.live", { timeout: 6000 });
   ok(await s.isVisible(".btab.live .bdot") && await s.isVisible(".blive") && !(await s.$("#liveNotice")), "Classes shows it on the class's tab and page instead of the notice");
+  classes.onPing("DELETE", { class_id: m.class_id }); // the lesson ends: deleting the room deletes its ping
+  await s.waitForSelector(".btab.live", { state: "detached", timeout: 4000 });
+  ok(!(await s.$(".blive")), "when the lesson ends, the class stops showing live without a reload");
+  classes.onPing("INSERT", { class_id: m.class_id, room, title: "Equilibrium" });
+  await s.waitForSelector(".blive", { timeout: 4000 });
   await s.click("#bHome"); await s.waitForSelector("#liveNotice", { timeout: 6000 });
   await s.click("#lnJoin"); await s.waitForURL(/classroom\.html/);
   const j = new URL(s.url());
   ok(j.searchParams.get("room") === room && j.searchParams.get("name") === "Priya", "Join takes them into the lesson with the code and their name filled in");
-  await s.goto(BASE + "/#classes"); await s.waitForSelector(".binder"); await s.waitForTimeout(2000);
+  await s.goto(BASE + "/#classes"); await s.waitForSelector(".binder"); await s.goto(BASE + "/"); await s.waitForSelector("#dial"); await s.waitForTimeout(2000);
   ok(!(await s.$("#liveNotice")), "a notice once acted on doesn't come back for the same lesson");
+  await s.goto(BASE + "/#classes"); await s.waitForSelector(".binder");
 
   // ---- leaving ends the teacher's view
   await s.click("#bLeave"); await s.click("#bLeaveYes");

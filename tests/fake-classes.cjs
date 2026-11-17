@@ -5,7 +5,8 @@
 const crypto = require("node:crypto");
 class FakeClasses {
   /** `rows(uid)` gives a user's synced notes and markers (FakeSupabase's rows), for the roster and a student's work. */
-  constructor(rows = () => ({ notes: [], markers: [] }), rooms = null) { this.classes = new Map(); this.members = []; this.rows = rows; this.rooms = rooms; this.calls = []; }
+  constructor(rows = () => ({ notes: [], markers: [] }), rooms = null) { this.classes = new Map(); this.members = []; this.rows = rows; this.rooms = rooms; this.calls = []; this.onPing = null; }
+  member(uid, classId) { return this.members.some(m => m.class_id === classId && m.user_id === uid); }
   code() { const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let c; do { c = Array.from({ length: 6 }, () => A[crypto.randomInt(A.length)]).join(""); } while ([...this.classes.values()].some(x => x.code === c)); return c; }
   owned(id, uid) { const c = this.classes.get(id); if (!c || c.owner !== uid || c.kind !== "teacher") throw new Error("Class not found."); return c; }
   byCode(code) { return [...this.classes.values()].find(c => c.code === String(code || "").trim().toUpperCase()); }
@@ -72,7 +73,11 @@ class FakeClasses {
         if (b.p_class) this.owned(b.p_class, uid);
         const r = this.rooms?.rooms.get(String(b.p_room || "").trim().toUpperCase());
         if (!r || r.secret !== b.p_secret) throw new Error("Only the host can do this.");
-        r.classId = b.p_class || null; return null;
+        const was = r.classId; r.classId = b.p_class || null;
+        // the ping Realtime pushes (class_pings in supabase/schema.sql)
+        if (was && was !== r.classId) this.onPing?.("DELETE", { class_id: was });
+        if (r.classId) this.onPing?.("INSERT", { class_id: r.classId, room: r.id, title: r.title });
+        return null;
       }
       default: return undefined;
     }

@@ -34,6 +34,7 @@ export function installDevSwitch() {
     setRole(to);
     el.querySelectorAll<HTMLElement>("[data-dev]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.dev === to)));
     if (import.meta.env.VITE_ARTIFACT) { // the preview is one page holding both sides: swap them in place
+      dispatchEvent(new Event("lb-role-switched")); // the notes side replays its opening, as a fresh launch would
       if (to === "teacher") void openClassroom("teacher");
       else if (classroomShowing()) void leaveClassroom(to);
       else { if (location.hash) location.hash = ""; redrawNotes(); }

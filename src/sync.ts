@@ -476,6 +476,19 @@ export async function leaveClass(classId: string) {
   const { error } = await sb.rpc("leave_class", { p_class: classId });
   if (error) throw new Error(error.message);
 }
+export type ClassPing = { type: "live"; classId: string; room: string; title: string } | { type: "ended"; classId: string };
+/** Tells `cb` the moment a teacher starts (or stops) a live lesson for one of this account's classes. It's pushed by
+ *  Supabase Realtime from the class_pings table, which row level security limits to the class's members; nothing
+ *  asks the server on a timer. Returns a function that stops listening. */
+export function subscribeClassPings(cb: (p: ClassPing) => void): () => void {
+  if (!sb || !session) return () => {};
+  const client = sb;
+  const ch = client.channel("class-pings").on("postgres_changes", { event: "*", schema: "public", table: "class_pings" }, (p: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
+    if (p.eventType === "DELETE") { if (p.old?.class_id) cb({ type: "ended", classId: String(p.old.class_id) }); }
+    else if (p.new?.class_id && p.new.room) cb({ type: "live", classId: String(p.new.class_id), room: String(p.new.room), title: String(p.new.title || "") });
+  }).subscribe();
+  return () => { void client.removeChannel(ch); };
+}
 /** The classes this account is in, with any live lesson running for each. Null when signed out or unreachable. */
 export async function myClasses(): Promise<MyClass[] | null> {
   if (!sb || !session) return null;
