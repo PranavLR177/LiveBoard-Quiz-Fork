@@ -7,7 +7,7 @@ import { destroyNote, flushNote, renderNote } from "./editor/noteView";
 import { fileToHtml } from "./importers";
 import { classroomUrl, openSettings } from "./settings";
 import { openSearch } from "./search";
-import { ensureStarterCourse, liveCourses, liveNotes, markersOf, newNote, note, onChange, openStore, putMarker, putMeta, putNote, state, deleteNote } from "./store";
+import { course, ensureStarterCourse, liveCourses, liveNotes, markersOf, newNote, note, onChange, openStore, putMarker, putMeta, putNote, state, deleteNote } from "./store";
 import { bootOwner, claimSignedOutNotes, initSync, migrateLegacyShared, push, signedOutNotes } from "./sync";
 import { $, debounce, esc, reducedMotion, toast } from "./util";
 import { newMarker } from "./store";
@@ -125,9 +125,9 @@ function currentCourseId() {
   return (recent && liveCourses().some(c => c.id === recent.courseId) ? recent.courseId : liveCourses()[0]?.id) as string;
 }
 
-async function newBlank() {
+async function newBlank(courseId?: string) {
   await ensureStarterCourse();
-  const n = await newNote(currentCourseId(), "Untitled note", "blank");
+  const n = await newNote(courseId && course(courseId) && !course(courseId)!.deleted ? courseId : currentCourseId(), "Untitled note", "blank");
   openNote(n.id);
 }
 

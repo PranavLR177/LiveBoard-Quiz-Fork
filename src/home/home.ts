@@ -1,6 +1,6 @@
-import { courseColor, courseName, liveMarkers, liveNotes, note, putMeta, putLocalMeta, state, streak, course } from "../store";
+import { courseColor, courseName, liveCourses, liveMarkers, liveNotes, note, putMeta, putLocalMeta, state, streak, course } from "../store";
 import { leaderboard, currentUser, syncConfigured } from "../sync";
-import type { Marker, Note } from "../types";
+import type { Course, Marker, Note } from "../types";
 import { $, agoLong, DAY, dayKey, esc, H, reducedMotion, wrapDeg } from "../util";
 import { setPendingOpen, TYPE_INFO } from "../editor/markerBox";
 import { aiHealth, askMarker } from "../ai";
@@ -12,7 +12,9 @@ import { openCram } from "./cram";
 import { onTheme } from "../theme";
 import { closeShelf, openShelf } from "./shelf";
 import { calendarChip, wireCalendar } from "./calendar";
-import { getRole } from "../role";
+import { getRole, groupWord } from "../role";
+import { cleanFolder } from "./folderLook";
+import { inkOn as folderInk, openFolderEditor } from "./folders";
 
 /* The home screen: a morning strip over a spinning dial of notes arranged by when they were last opened.
    Recall plays inside the dial's center while the ring turns to each question's note. */
@@ -29,11 +31,17 @@ const BANDS: Band[] = [
 ];
 const FOLDC: [string, string][] = [["--g1", "#fff"], ["--g2", "#2B1500"], ["--g3", "#2A2100"], ["--g4", "#032E2A"], ["--g5", "#fff"], ["--g6", "#fff"], ["--g7", "#fff"]];
 const GAPDEG = 5, SAMEGAP = 1.5, MAXFILES = 5, LOOSE = 3;
+/** Folders you made (a course or notebook with a look of its own) sit just left of the pointer, outside the run of
+ *  time: from YOURS_FROM degrees round to the pointer. Spin back from "now" and they come round. */
+const MINE: Band = { l: "Your folders", s: "made by you", max: -1, w: 1.2 };
+const YOURS_FROM = 262, MAX_YOURS = 6;
+/** A folder's colour and the ink on it: its own colour for one you made, the band's colour for a time folder. */
+const fcOf = (f: Item): [string, string] => f.custom ? [courseColor(f.custom.id), folderInk(courseColor(f.custom.id))] : (([v, ink]) => [`var(${v})`, ink])(FOLDC[BANDS.indexOf(f.b) % FOLDC.length]);
 /** Where the oldest folder ends, in degrees clockwise from the pointer: about 3/4 of the way round, leaving the
  *  last quarter empty so the start and end of time never sit next to each other. */
 const ARC_END = 258;
 
-interface Item { b: Band; label: string; ns: Note[]; w: number; loose?: boolean; more?: boolean; span: number; ang: number; W: number; x: number; y: number; near: number; tilt: number }
+interface Item { b: Band; label: string; ns: Note[]; w: number; loose?: boolean; more?: boolean; custom?: Course; span: number; ang: number; W: number; x: number; y: number; near: number; tilt: number }
 /** One recall session. `typed` is what the student wrote from memory for the current question; `missed` collects the ones answered "Again". */
 interface Recall { queue: string[]; i: number; revealed: boolean; got: number; done: boolean; k: number; typed: string; missed: string[]; cram: string | null; ai: string | null; checking: boolean; flipped?: boolean }
 
@@ -46,7 +54,7 @@ let focusNote: string | null = null;
 let pop: string | null = null;
 let aiOn = false;
 aiHealth().then(h => { aiOn = h.ai; });
-let handlers: { openNote: (id: string) => void; newBlank: () => void; importFile: () => void; openSettings: (section?: string) => void } | null = null;
+let handlers: { openNote: (id: string) => void; newBlank: (courseId?: string) => void; importFile: () => void; openSettings: (section?: string) => void } | null = null;
 let alive = false;
 onTheme(() => recolor($("#dial"))); // light or dark: the bezel re-reads its ink
 let introduced = false; // the 3D rise plays once per launch, not every time you come back to the dial
@@ -224,18 +232,23 @@ function pastLabel(ns: Note[]) {
   if (young >= 365 * DAY && old < 730 * DAY) return "A year ago";
   return "In the past";
 }
+/** Your own folders, oldest first, so the newest one sits nearest the pointer. */
+export const yourFolders = () => liveCourses().filter(c => cleanFolder(c.folder)).sort((a, b) => (cleanFolder(a.folder)!.at - cleanFolder(b.folder)!.at) || a.name.localeCompare(b.name)).slice(-MAX_YOURS);
 function layout() {
   const notes = liveNotes().sort((a, b) => b.openedAt - a.openedAt);
+  const mine = yourFolders(), inMine = new Set(mine.map(c => c.id));
   const out: Omit<Item, "span" | "ang" | "W" | "x" | "y" | "near" | "tilt">[] = [];
   BANDS.forEach((b, bi) => {
     const lo = bi ? BANDS[bi - 1].max : -Infinity;
-    const ns = notes.filter(n => { const age = Date.now() - n.openedAt; return age >= lo && age < b.max; });
+    // a note in one of your folders lives there; it only also shows as one of the three loose recent cards
+    const ns = notes.filter(n => { const age = Date.now() - n.openedAt; return age >= lo && age < b.max; }).filter((n, k) => !inMine.has(n.courseId) || (bi === 0 && k < LOOSE));
     if (!ns.length) return;
     if (bi === 0) {
       ns.slice(0, LOOSE).forEach(n => out.push({ b, label: b.l, ns: [n], w: b.w, loose: true }));
       if (ns.length > LOOSE) out.push({ b, label: b.l, ns: ns.slice(LOOSE), w: 1.25, more: true });
     } else out.push({ b, label: b.max === Infinity ? pastLabel(ns) : b.l, ns, w: b.w });
   });
+  for (const c of mine) out.push({ b: MINE, label: c.name, ns: notes.filter(n => n.courseId === c.id), w: MINE.w, custom: c });
   // Angles depend on the dial's size, so sizeDial() places them.
   items = out.map(f => ({ ...f, span: 0, ang: 0, W: 0, x: 0, y: 0, near: 0, tilt: 0 }));
 }
@@ -248,7 +261,7 @@ const OVERLAP = 0.14;
 /** A folder holding a lot grows a little (on a log scale, so 300 notes is not 30 times 10): it reads as fuller without
  *  ever outgrowing the cards for more recent work by much. Loose cards are one note each and never change. */
 const volume = (f: Item) => f.loose ? 1 : 1 + Math.min(0.2, Math.log10(Math.max(1, f.ns.length)) * 0.085);
-const sizeOf = (f: Item) => (f.more ? MORE_SIZE : SIZE[BANDS.indexOf(f.b)] ?? SIZE[SIZE.length - 1]) * volume(f);
+const sizeOf = (f: Item) => (f.custom ? 0.72 : f.more ? MORE_SIZE : SIZE[BANDS.indexOf(f.b)] ?? SIZE[SIZE.length - 1]) * volume(f);
 /** 0–3: how thick a folder's stack is drawn. */
 const stack = (n: number) => n > 80 ? 3 : n > 20 ? 2 : n > MAXFILES ? 1 : 0;
 const compact = (n: number) => n >= 10000 ? Math.round(n / 1000) + "k" : n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n);
@@ -268,12 +281,32 @@ function placeItems(maxW: number) {
     const t = deg * Math.PI / 180, foot = f.W * Math.abs(Math.cos(t)) + f.W * 0.74 * Math.abs(Math.sin(t));
     return Math.asin(Math.min(1, foot / 2 / radiusAt(f.W, deg, !f.loose))) * 180 / Math.PI;
   };
+  const time = items.filter(f => !f.custom), mine = items.filter(f => f.custom);
+  // Your folders first: packed backwards from just left of the pointer, shrinking until they fit in their quarter.
+  let arcEnd = ARC_END;
+  if (mine.length) {
+    const head = time.length ? half({ ...time[0], W: Math.max(64, maxW * sizeOf(time[0])) } as Item, 0) : 0;
+    let k = 1, start = 0;
+    for (;;) {
+      mine.forEach(f => { f.W = Math.max(56, maxW * sizeOf(f) * k); });
+      let a = 360 - head - GAPDEG;
+      for (let m = mine.length - 1; m >= 0; m--) {
+        const f = mine[m], h = half(f, a - half(f, a));
+        f.ang = a - h; f.span = 2 * h; a = f.ang - h - SAMEGAP;
+      }
+      start = mine[0].ang - mine[0].span / 2;
+      if (start >= YOURS_FROM || k <= 0.62) break;
+      k *= 0.92;
+    }
+    if (start < YOURS_FROM) { const top = mine[mine.length - 1].ang, s2 = (top - YOURS_FROM - mine[0].span / 2) / (top - mine[0].ang || 1); mine.forEach(f => { f.ang = top - (top - f.ang) * s2; }); start = YOURS_FROM; }
+    arcEnd = Math.min(ARC_END, start - 3 * GAPDEG);
+  }
   const pack = () => {
     let a = 0;
     const ends: number[] = [];
-    items.forEach((f, i) => {
+    time.forEach((f, i) => {
       if (i) {
-        const p = items[i - 1], gap = p.b === f.b ? SAMEGAP : GAPDEG;
+        const p = time[i - 1], gap = p.b === f.b ? SAMEGAP : GAPDEG;
         const h1 = half(p, p.ang), guess = p.ang + h1 + gap + half(f, p.ang + h1);
         a = p.ang + h1 + gap + half(f, guess);
       }
@@ -286,20 +319,21 @@ function placeItems(maxW: number) {
   // past that, neighbours overlap slightly instead (the one under the pointer always comes to the front).
   let scale = 1, end = 0;
   for (;;) {
-    items.forEach(f => { f.W = Math.max(64, maxW * sizeOf(f) * scale); });
+    time.forEach(f => { f.W = Math.max(64, maxW * sizeOf(f) * scale); });
     end = pack();
-    if (end <= ARC_END || scale <= 0.86) break;
+    if (end <= arcEnd || scale <= 0.86) break;
     scale *= 0.95;
   }
-  if (items.length < 2) return;
-  if (end > ARC_END) { const k = ARC_END / end; items.forEach(f => { f.ang *= k; }); return; }
-  const breaks = items.reduce((t, f, i) => t + (i && items[i - 1].b !== f.b ? 1 : 0), 0);
+  if (time.length < 2) return;
+  if (end > arcEnd) { const k = arcEnd / end; time.forEach(f => { f.ang *= k; }); return; }
+  const breaks = time.reduce((t, f, i) => t + (i && time[i - 1].b !== f.b ? 1 : 0), 0);
   if (!breaks) return;
   let shift = 0;
-  items.forEach((f, i) => { if (i && items[i - 1].b !== f.b) shift += (ARC_END - end) / breaks; f.ang += shift; });
+  time.forEach((f, i) => { if (i && time[i - 1].b !== f.b) shift += (arcEnd - end) / breaks; f.ang += shift; });
 }
 
 function itemHTML(f: Item, i: number) {
+  if (f.custom) return mineHTML(f, i);
   const fc = FOLDC[BANDS.indexOf(f.b) % FOLDC.length];
   if (f.loose) {
     const n = f.ns[0], mc = liveMarkers().filter(x => x.noteId === n.id).length;
@@ -316,6 +350,26 @@ function itemHTML(f: Item, i: number) {
     <div class="ffront"><b>${f.more ? `+${compact(f.ns.length)} more` : f.label}</b>${big ? `<span class="seeall" data-all="${i}" title="See all ${f.ns.length} notes">See all ${compact(f.ns.length)}</span>` : `<span>${f.more ? "recently opened" : `${f.ns.length} note${f.ns.length > 1 ? "s" : ""}`}</span>`}</div></div>`;
 }
 
+/** Makes or changes one of your folders, then redraws the dial turned to it. */
+function editFolder(courseId: string | null) {
+  openFolderEditor(courseId, id => {
+    if (!alive || !handlers || !$("#dial")) return;
+    renderHome($("#stage")!, handlers, true, true);
+    const k = id ? items.findIndex(f => f.custom?.id === id) : -1;
+    if (k >= 0) goTo(k);
+  });
+}
+
+/** A folder you made: your colour, background and mark, with your name on the front. An empty one still shows. */
+function mineHTML(f: Item, i: number) {
+  const look = cleanFolder(f.custom!.folder)!, [col, ink] = fcOf(f), show = f.ns.slice(0, MAXFILES), m = show.length, big = f.ns.length > MAXFILES;
+  return `<div class="folder mine" data-f="${i}" data-bg="${look.bg}" data-vol="${stack(f.ns.length)}" style="--fc:${col};--ft:${ink};--i:${i};--lz:${(0.55 + (i % 4) * 0.17).toFixed(2)}">
+    <div class="fback"><span class="ftab">${look.icon ? `<i>${esc(look.icon)}</i>` : ""}</span></div>
+    ${show.map((n, k) => `<button class="file" data-n="${n.id}" tabindex="-1" style="--c:${courseColor(n.courseId)};--k:${k};z-index:${10 + m - k}" aria-label="${esc(f.label + ", " + n.title)}"><span class="ft">${esc(n.title)}</span><span class="fm">${agoLong(n.openedAt)}</span>${hasDue(n.id) ? '<span class="md"></span>' : ""}</button>`).join("")}
+    <div class="ffront"><b>${esc(titleCase(f.label))}</b>${big ? `<span class="seeall" data-all="${i}" title="See all ${f.ns.length} notes">See all ${compact(f.ns.length)}</span>` : `<span>${f.ns.length ? `${f.ns.length} note${f.ns.length > 1 ? "s" : ""}` : "Empty"}</span>`}</div></div>`;
+}
+const titleCase = (t: string) => t.toLowerCase().replace(/(^|\s)\S/g, x => x.toUpperCase());
+
 /** `keep` re-renders in place (same rotation). `still` skips the spin-in, for when the dial is morphing back from a note. */
 export function renderHome(stage: HTMLElement, h: NonNullable<typeof handlers>, keep = false, still = false) {
   handlers = h;
@@ -329,12 +383,13 @@ export function renderHome(stage: HTMLElement, h: NonNullable<typeof handlers>, 
         <div class="info" id="info" aria-live="polite"></div>
         <div class="hubacts">
           <button class="hbtn" data-act="import" title="${getRole() === "individual" ? "Import a file" : "Import lecture"}" aria-label="${getRole() === "individual" ? "Import a file" : "Import lecture"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/></svg><span>Import</span></button>
-          <button class="hbtn" data-act="blank" title="Blank page" aria-label="Blank page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M12 12v6M9 15h6"/></svg><span>Blank page</span></button></div></div></div>
+          <button class="hbtn" data-act="blank" title="Blank page" aria-label="Blank page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M12 12v6M9 15h6"/></svg><span>Blank page</span></button>
+          <button class="hbtn" data-act="folder" title="New folder: your own, with its own colour and look" aria-label="New folder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.500h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v6M9 14h6"/></svg><span>Folder</span></button></div></div></div>
     <div id="infoSlot"></div>
     <div class="spinrow"><button class="spinbtn" id="spinPrev" aria-label="Spin toward newer notes">←</button><span class="spinhint"><span class="hov">Drag or scroll to move through time · select a folder to peek inside</span><span class="tch">Drag the dial to move through time · tap a folder to bring it up and open it</span></span><button class="spinbtn" id="spinNext" aria-label="Spin toward older notes">→</button></div>
     <section class="follow" id="follow"></section></div>`;
   $("#folders")!.innerHTML = items.map(itemHTML).join("");
-  $("#hub")!.querySelectorAll<HTMLButtonElement>(".hbtn").forEach(b => b.onclick = () => (b.dataset.act === "blank" ? h.newBlank() : h.importFile()));
+  $("#hub")!.querySelectorAll<HTMLButtonElement>(".hbtn").forEach(b => b.onclick = () => (b.dataset.act === "blank" ? h.newBlank() : b.dataset.act === "folder" ? editFolder(null) : h.importFile()));
   renderMorning();
   renderFollow();
   $("#spinPrev")!.onclick = () => goTo(sel - 1);
@@ -484,7 +539,7 @@ function paintRing() {
   if (!items.length) { el.style.removeProperty("--ring"); return; }
   // Quiet by default: every stretch is the same soft grey with a hairline gap between bands, so the ring still shows
   // how time is divided. Only the stretch under the pointer is lit, in that note's or folder's colour.
-  const col = (f: Item, i: number) => i !== sel ? "var(--ringmute)" : (f.loose ? courseColor(f.ns[0].courseId) : `var(${FOLDC[BANDS.indexOf(f.b) % FOLDC.length][0]})`);
+  const col = (f: Item, i: number) => i !== sel ? "var(--ringmute)" : (f.loose ? courseColor(f.ns[0].courseId) : fcOf(f)[0]);
   const h0 = items[0].span / 2, last = items[items.length - 1], end = Math.min(last.ang + last.span / 2, 350 - h0), gap = 1.1;
   const stops = [`${col(items[0], 0)} 0deg`, `${col(items[0], 0)} ${(h0 - gap).toFixed(1)}deg`, `transparent ${(h0 - gap).toFixed(1)}deg`, `transparent ${h0.toFixed(1)}deg`];
   items.slice(1).forEach((f, j) => {
@@ -563,7 +618,7 @@ function updateInfo() {
   const el = $("#info"), fi = hoverF >= 0 ? hoverF : sel, f = items[fi];
   if (!el || !f) return;
   const n = hoverNote ? note(hoverNote) : f.loose ? f.ns[0] : null;
-  const fc = FOLDC[BANDS.indexOf(f.b) % FOLDC.length];
+  const fc = fcOf(f);
   const key = n ? n.id : "f" + fi;
   if (el.dataset.key === key) return;
   el.dataset.key = key;
@@ -576,16 +631,30 @@ function updateInfo() {
       <div class="htitle">${esc(n.title)}</div>${fingerprint(n.id, 18)}
       <div class="stats"><span class="stat"><b>${num || "Now"}</b>${esc(lab)}</span><span class="stat" title="${mastered} mastered"><b>${ms.length}</b>marker${ms.length === 1 ? "" : "s"}</span>${due ? `<span class="stat due"><b>${due}</b>to recall</span>` : ""}</div>
       <button class="openlink">Open note</button>`;
+  } else if (f.custom) {
+    // one of your folders: what's in it, and the ways to fill it or change how it looks
+    setHc(fc[0], el);
+    const look = cleanFolder(f.custom.folder)!;
+    html = `<span class="pill" style="background:${fc[0]};color:${fc[1]}">${look.icon ? esc(look.icon) + " " : ""}${esc(titleCase(f.label))}</span>
+      <div class="bignum" style="--a:${fc[0]}">${f.ns.length}<small>note${f.ns.length === 1 ? "" : "s"}</small></div>
+      ${f.ns.length ? `<button class="openlink">Open newest</button>` : `<div class="note mineempty">Empty. Start a note here, or move one in from the ${groupWord()} menu at the top of a note.</div>`}
+      <div class="minebtns"><button class="alllink" id="hubNewIn">+ New note here</button><button class="alllink" id="hubLook">Customize</button>${f.ns.length > MAXFILES ? `<button class="alllink" id="hubAll">See all ${compact(f.ns.length)}</button>` : ""}</div>`;
   } else {
-    setHc(`var(${fc[0]})`, el);
+    setHc(fc[0], el);
     const cs = [...new Set(f.ns.map(x => x.courseId))];
-    html = `<span class="pill" style="background:var(${fc[0]});color:${fc[1]}">${f.more ? "More recent" : f.label}</span>
-      <div class="bignum" style="--a:var(${fc[0]})">${f.ns.length}<small>note${f.ns.length > 1 ? "s" : ""}</small></div>
+    html = `<span class="pill" style="background:${fc[0]};color:${fc[1]}">${f.more ? "More recent" : f.label}</span>
+      <div class="bignum" style="--a:${fc[0]}">${f.ns.length}<small>note${f.ns.length > 1 ? "s" : ""}</small></div>
       <div class="cdots">${cs.slice(0, 8).map(c => `<span title="${esc(courseName(c))}" style="background:${courseColor(c)}"></span>`).join("")}<em>${cs.length} course${cs.length > 1 ? "s" : ""}</em></div>
       <button class="openlink">Open newest</button>${f.ns.length > MAXFILES ? `<button class="alllink" id="hubAll">See all ${compact(f.ns.length)}</button>` : ""}`;
   }
   el.innerHTML = `<div class="infoin">${html}</div>`;
-  el.querySelector<HTMLButtonElement>(".openlink")!.onclick = () => handlers?.openNote((n || f.ns[0]).id);
+  const openBtn = el.querySelector<HTMLButtonElement>(".openlink");
+  if (openBtn) openBtn.onclick = () => handlers?.openNote((n || f.ns[0]).id);
+  if (f.custom && !n) {
+    const cid = f.custom.id;
+    el.querySelector<HTMLButtonElement>("#hubNewIn")!.onclick = () => handlers?.newBlank(cid);
+    el.querySelector<HTMLButtonElement>("#hubLook")!.onclick = () => editFolder(cid);
+  }
   const allBtn = el.querySelector<HTMLButtonElement>("#hubAll");
   if (allBtn) allBtn.onclick = () => showShelf(fi);
 }
@@ -638,8 +707,8 @@ function hidePeek(now = false) {
 function showShelf(k: number) {
   const f = items[k];
   if (!f || f.loose) return;
-  const fc = FOLDC[BANDS.indexOf(f.b) % FOLDC.length];
-  openShelf({ title: f.more ? "More recent" : f.label, color: `var(${fc[0]})`, ink: fc[1], notes: f.ns, from: G.els[k] ?? null, openNote: id => handlers?.openNote(id) });
+  const fc = fcOf(f);
+  openShelf({ title: f.custom ? titleCase(f.label) : f.more ? "More recent" : f.label, color: fc[0], ink: fc[1], notes: f.ns, from: G.els[k] ?? null, openNote: id => handlers?.openNote(id) });
 }
 
 function bindDial() {
