@@ -1595,3 +1595,19 @@ html.cramming { overflow: hidden; }
 }
 /* an open panel on the top line sits above the dial, whose cards otherwise draw over it */
 .morning:has(.lbpop:not([hidden])) { position: relative; z-index: 620; }
+
+/* ---------- dial-first home ----------
+   The dial is the screen. The top line (greeting, recall, streak, calendar, exams, classes) is drawn small and faint
+   and pulled up tight, and what's under the dial likewise. Each comes up to full size when you go to it: point at it,
+   tab into it, open one of its panels, or scroll toward it (home.ts adds wake-top / wake-bottom). The top line keeps
+   the same room in the layout either way and grows over the empty space above the dial, so nothing jumps. */
+.morning { --tuck: .74; transform-origin: 50% 0; margin-bottom: calc(var(--mh, 90px) * (var(--tuck) - 1)); transition: transform .34s cubic-bezier(.2, .9, .3, 1), opacity .3s; position: relative; z-index: 5; }
+.dialwrap:not(.wake-top) .morning:not(:focus-within):not(:has(.lbpop:not([hidden]))) { transform: scale(var(--tuck)); opacity: .6; }
+.spinrow, .follow { transform-origin: 50% 0; transition: transform .34s cubic-bezier(.2, .9, .3, 1), opacity .3s; }
+.dialwrap:not(.wake-bottom) .spinrow:not(:focus-within) { transform: scale(.84); opacity: .5; }
+.dialwrap:not(.wake-bottom) .follow:not(:focus-within) { transform: scale(.9); opacity: .38; }
+@media (hover: hover) {
+  .dialwrap .morning:hover { transform: none !important; opacity: 1 !important; }
+  .dialwrap .spinrow:hover, .dialwrap .follow:hover { transform: none !important; opacity: 1 !important; }
+}
+@media (prefers-reduced-motion: reduce) { .morning, .spinrow, .follow { transition: none; } }

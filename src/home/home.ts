@@ -429,17 +429,23 @@ export function destroyHome() {
   pop = null;
 }
 
+const RISE = 0.34; // share of a fanned folder's height kept clear above the dial; the rest may rise over the tucked top line
+const TUCK = 0.74; // how small the top line is drawn while tucked away (styles.css uses the same number as --tuck)
 function sizeDial() {
   const st = $("#stage")!, dial = $("#dial");
   if (!dial) return;
-  const w = st.clientWidth - 32, h = st.clientHeight - $("#morning")!.offsetHeight - 80;
+  // The dial is the screen. The top line is tucked (drawn at TUCK of its size until you go to it), and the row under
+  // the dial is small, so the dial gets nearly all the height.
+  const morning = $("#morning")!;
+  morning.style.setProperty("--mh", morning.offsetHeight + "px");
+  const w = st.clientWidth - 32, h = st.clientHeight - morning.offsetHeight * TUCK - 54;
   const mw = (sz: number) => Math.max(120, Math.min(250, sz * 0.33));
   const rise = (W: number) => (W / 13) * (1.6 + (MAXFILES - 1) * 2) - W * 0.74 * 0.16;
-  let size = Math.max(300, Math.min(w, 780));
-  if (w >= 560) size = Math.max(320, Math.min(size, h - rise(mw(size)) * 0.5));
+  let size = Math.max(300, Math.min(w, 940));
+  if (w >= 560) size = Math.max(320, Math.min(size, h - rise(mw(size)) * RISE));
   const maxW = mw(size), c = size / 2;
   const rF = c - 10 - maxW * 0.42, hub = Math.max(120, 2 * (rF - maxW * 0.3));
-  dial.style.marginTop = Math.max(0, rise(maxW) * 0.5) + "px";
+  dial.style.marginTop = Math.max(0, rise(maxW) * RISE) + "px";
   dial.style.setProperty("--size", size + "px");
   dial.style.setProperty("--hub", hub + "px");
   const ring = $("#ringline")!;
@@ -856,6 +862,25 @@ export function installHomeListeners() {
   if (installed) return;
   installed = true;
   addEventListener("resize", () => { if (alive && $("#dial")) { sizeDial(); lastDrawn = null; } });
+  // Dial-first home: the top line and what's under the dial stay tucked away, and come up to full size when you go to
+  // them. Hover and keyboard focus are handled in CSS; this covers scrolling toward them and touch.
+  const stage = $("#stage")!;
+  let sleep = 0;
+  const wake = (top: boolean) => { const w = $(".dialwrap"); if (!w) return; w.classList.toggle("wake-top", top); clearTimeout(sleep); if (top) sleep = window.setTimeout(() => $(".dialwrap")?.classList.remove("wake-top"), 6000); };
+  stage.addEventListener("wheel", e => {
+    if (!alive || (e.target as Element).closest("#dial, .lbpop")) return; // over the dial the wheel spins it
+    if (e.deltaY < -4 && stage.scrollTop <= 0) wake(true); else if (e.deltaY > 4) wake(false);
+  }, { passive: true });
+  stage.addEventListener("scroll", () => { if (alive) $(".dialwrap")?.classList.toggle("wake-bottom", stage.scrollTop > 40); }, { passive: true });
+  stage.addEventListener("pointerdown", e => {
+    if (!alive || e.pointerType === "mouse") return;
+    const t = e.target as Element;
+    if (t.closest("#morning")) wake(true); else if (t.closest("#dial")) wake(false);
+  });
+  // pulling down at the top of the page on a touch screen is "scrolling up to it"
+  let touchY: number | null = null;
+  stage.addEventListener("touchstart", e => { touchY = stage.scrollTop <= 0 && !(e.target as Element).closest("#dial") ? e.touches[0].clientY : null; }, { passive: true });
+  stage.addEventListener("touchmove", e => { if (touchY != null && e.touches[0].clientY - touchY > 36) { wake(true); touchY = null; } }, { passive: true });
   document.addEventListener("pointerdown", e => { if (pop && !(e.target as Element).closest(".lbwrap")) closePop(); });
   document.addEventListener("keydown", e => {
     if (e.key !== "Escape" || !alive) return;
