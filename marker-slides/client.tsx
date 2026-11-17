@@ -4,6 +4,8 @@ import "./app/globals.css";
 import { initTheme, isDark, onTheme } from "../src/theme";
 import { supabaseRooms } from "../src/classroom/rooms";
 import { setRoomsBackend } from "./app/roomsApi";
+import { setClassesBackend } from "./app/classesApi";
+import { supabaseClasses } from "../src/classroom/classes";
 import { installDevSwitch } from "../src/devSwitch";
 
 // The classroom is bundled into LiveBoard: it shares the notes side's origin, storage, light/dark choice and server.
@@ -12,7 +14,9 @@ const spellOut = () => { document.documentElement.dataset.theme = isDark() ? "da
 onTheme(spellOut);
 initTheme();
 const live = supabaseRooms();
-if (live) setRoomsBackend(live); // otherwise /api/rooms, the stand-alone classroom runtime used in local development
+if (live) setRoomsBackend(live);
+// otherwise /api/rooms, the stand-alone classroom runtime used in local development
+setClassesBackend(supabaseClasses()); // a teacher's classes need LiveBoard's accounts; without them the Classes screen says so
 
 const params = new URLSearchParams(location.search);
 if (!params.has("view") && !params.has("room") && !params.has("deck")) {

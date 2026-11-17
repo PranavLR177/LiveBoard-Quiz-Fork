@@ -2,6 +2,10 @@ import { createRoot } from "react-dom/client";
 import Page from "./app/page";
 import css from "./app/globals.css?inline";
 import { embed } from "./app/nav";
+import { setClassesBackend } from "./app/classesApi";
+import { sampleClasses } from "./app/classesDemo";
+
+setClassesBackend(sampleClasses()); // the preview has no server: sample classes stand in for a teacher's real ones
 
 /* The classroom mounted inside the notes page instead of on its own page. Only the single-file preview uses this (it
    can't hold a second page); the real app serves the classroom at /classroom.html (client.tsx). The stylesheet is

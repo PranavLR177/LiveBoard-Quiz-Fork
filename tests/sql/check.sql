@@ -205,4 +205,72 @@ reset role;
 select not exists (select 1 from public.live_rooms where id = 'OLDROOM1') as expired \gset
 \if :expired \else \echo 'FAIL rooms older than 12 hours are cleared' \quit \endif
 
+
+-- Teacher classes: a teacher (c) makes a class; student a joins and shares one course; student b joins a different way
+reset role;
+insert into auth.users values ('00000000-0000-0000-0000-00000000000c') on conflict do nothing;
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
+select id as tcls, code as tcode from public.teacher_create_class('AP Chemistry', 'Ms Rivera') \gset
+select count(*) = 1 and bool_and(students = 0) as t_listed from public.teacher_classes() \gset
+\if :t_listed \else \echo 'FAIL teacher sees their new class' \quit \endif
+\set ON_ERROR_STOP 0
+\echo '(expected) a teacher cannot join their own class as a student:'
+select * from public.join_class(:'tcode', 'Ms Rivera', 'x', true);
+\set ON_ERROR_STOP 1
+-- student a: their notes in course c1 (shared) and c2 (private)
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
+select public.push_rows('notes', '[{"id":"tn1","base_rev":0,"data":{"title":"Equilibrium notes","courseId":"c1","plain":"Le Chatelier shifts","kind":"lecture"},"updated_at":10},{"id":"tn2","base_rev":0,"data":{"title":"Diary","courseId":"c2","plain":"private thoughts"},"updated_at":11}]', 1) is not null as a_notes \gset
+select public.push_rows('markers', '[{"id":"tm1","base_rev":0,"data":{"noteId":"tn1","type":"ask","text":"why does it shift","mastery":2,"due":1},"updated_at":12},{"id":"tm2","base_rev":0,"data":{"noteId":"tn2","type":"ask","text":"secret"},"updated_at":13}]', 1) is not null as a_marks \gset
+select name = 'AP Chemistry' and kind = 'teacher' and teacher_name = 'Ms Rivera' as previewed from public.class_preview(lower(:'tcode')) \gset
+\if :previewed \else \echo 'FAIL a student can see what a code is before joining' \quit \endif
+\set ON_ERROR_STOP 0
+\echo '(expected) joining a teacher class without agreeing to share is refused:'
+select * from public.join_class(:'tcode', 'Ana', 'c1', false);
+\set ON_ERROR_STOP 1
+select kind = 'teacher' as a_joined from public.join_class(:'tcode', 'Ana', 'c1', true) \gset
+select count(*) = 1 and bool_and(teacher_name = 'Ms Rivera' and shares and course_id = 'c1') as a_sees from public.my_classes() where kind = 'teacher' \gset
+\if :a_sees \else \echo 'FAIL the student sees the class they joined' \quit \endif
+\set ON_ERROR_STOP 0
+\echo '(expected) a student cannot read the roster or anyone''s work:'
+select * from public.teacher_roster(:'tcls');
+select public.teacher_student_work(:'tcls', '00000000-0000-0000-0000-00000000000a');
+\set ON_ERROR_STOP 1
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
+select kind = 'teacher' as b_joined from public.join_class(:'tcode', 'Ben', 'zz', true) \gset
+-- the teacher's view
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
+select notes = 1 and markers = 1 and mastered = 1 and shares as roster_ok from public.teacher_roster(:'tcls') where display_name = 'Ana' \gset
+\if :roster_ok \else \echo 'FAIL the roster counts only the linked course' \quit \endif
+select public.teacher_student_work(:'tcls', '00000000-0000-0000-0000-00000000000a') as work \gset
+select jsonb_array_length(:'work'::jsonb->'notes') = 1 and :'work'::jsonb->'notes'->0->>'title' = 'Equilibrium notes' and jsonb_array_length(:'work'::jsonb->'markers') = 1
+   and position('private' in :'work') = 0 and position('secret' in :'work') = 0 as work_ok \gset
+\if :work_ok \else \echo 'FAIL the teacher sees only the shared course, nothing else' \quit \endif
+-- a live lesson tied to the class shows up for its students, and only theirs
+select public.room_create('Equilibrium', '[{"title":"One","kicker":"01","body":"b","detail":"d","visual":"none","notes":""}]') as tmade \gset
+select :'tmade'::jsonb->>'id' as troom, :'tmade'::jsonb->>'secret' as tsecret \gset
+\set ON_ERROR_STOP 0
+\echo '(expected) the room can only be tied to the host''s own class:'
+select public.room_for_class(:'troom', gen_random_uuid(), :'tcls');
+\set ON_ERROR_STOP 1
+select public.room_for_class(:'troom', :'tsecret'::uuid, :'tcls') is null as tied \gset
+select live_room = :'troom' as t_live from public.teacher_classes() \gset
+\if :t_live \else \echo 'FAIL the teacher sees the class is live' \quit \endif
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
+select live_room = :'troom' and live_title = 'Equilibrium' as a_live from public.my_classes() where kind = 'teacher' \gset
+\if :a_live \else \echo 'FAIL a student in the class is told it is live' \quit \endif
+-- leaving ends the sharing at once
+select public.leave_class(:'tcls') is null as left_class \gset
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
+\set ON_ERROR_STOP 0
+\echo '(expected) after leaving, the student''s work is no longer readable:'
+select public.teacher_student_work(:'tcls', '00000000-0000-0000-0000-00000000000a');
+\set ON_ERROR_STOP 1
+select count(*) = 1 as one_left from public.teacher_roster(:'tcls') \gset
+\if :one_left \else \echo 'FAIL leaving removes the student from the roster' \quit \endif
+select public.teacher_delete_class(:'tcls') is null as deleted_cls \gset
+select count(*) = 0 as gone_cls from public.teacher_classes() \gset
+\if :gone_cls \else \echo 'FAIL a teacher can delete their class' \quit \endif
+reset role;
+
 \echo 'ALL SQL CHECKS PASS'

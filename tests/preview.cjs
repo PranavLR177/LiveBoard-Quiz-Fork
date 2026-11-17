@@ -36,9 +36,11 @@ const ok = (c, m) => { console.log((c ? "ok   " : "FAIL ") + m); if (!c) errs.pu
   await p.click('#devSwitch [data-dev="individual"]'); await p.waitForSelector(".fcard");
   ok(!(await p.isVisible("#discussionJoin")) && !(await p.$("#classroom-root")), "and to Just me");
   await p.click('#devSwitch [data-dev="student"]'); await p.waitForSelector("#lbWrap");
-  await p.click("#discussionJoin"); await p.waitForSelector(".join-card");
+  await p.click("#discussionJoin"); await p.waitForSelector(".btab.live");
+  ok((await p.textContent(".bpage")).includes("AP Biology") && await p.isVisible(".blive"), "Classes opens the binder on the sample class that's live");
+  await p.click(".btab.bjoin"); await p.fill("#bCode", "AB12CD34"); await p.click("#bGo"); await p.waitForSelector(".join-card");
   await p.click('.lb-top a:has-text("My notes")'); await p.waitForSelector(".fcard");
-  ok(true, "Join class opens the join screen in place and My notes comes back");
+  ok(true, "a lesson code under Classes opens the join screen in place and My notes comes back");
   await b.close(); server.close(); fs.rmSync(dir, { recursive: true, force: true });
   console.log(errs.length ? "\nFAILURES:\n" + errs.join("\n") : "\nALL PREVIEW CHECKS PASS");
   process.exit(errs.length ? 1 : 0);
