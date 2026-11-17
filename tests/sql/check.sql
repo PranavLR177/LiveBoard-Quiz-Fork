@@ -259,6 +259,24 @@ select live_room = :'troom' as t_live from public.teacher_classes() \gset
 set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
 select live_room = :'troom' and live_title = 'Equilibrium' as a_live from public.my_classes() where kind = 'teacher' \gset
 \if :a_live \else \echo 'FAIL a student in the class is told it is live' \quit \endif
+select count(*) = 1 and bool_and(room = :'troom' and title = 'Equilibrium') as a_ping from public.class_pings \gset
+\if :a_ping \else \echo 'FAIL telling the class pings its students (the row Realtime pushes)' \quit \endif
+\set ON_ERROR_STOP 0
+\echo '(expected) a student cannot make or change a ping themselves:'
+insert into public.class_pings (class_id, room, title) values (:'tcls', :'troom', 'fake');
+update public.class_pings set title = 'fake';
+\set ON_ERROR_STOP 1
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
+select count(*) = 0 as c_no_ping from public.class_pings \gset
+\if :c_no_ping \else \echo 'FAIL only members of the class can read its ping' \quit \endif
+select public.room_for_class(:'troom', :'tsecret'::uuid, null) is null as untied \gset
+select count(*) = 0 as unpinged from public.class_pings where room = :'troom' \gset
+reset role;
+select count(*) = 0 as unpinged2 from public.class_pings where room = :'troom' \gset
+set role authenticated;
+\if :unpinged2 \else \echo 'FAIL untelling the class takes the ping back' \quit \endif
+select public.room_for_class(:'troom', :'tsecret'::uuid, :'tcls') is null as retied \gset
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
 -- leaving ends the sharing at once
 select public.leave_class(:'tcls') is null as left_class \gset
 set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
@@ -268,7 +286,15 @@ select public.teacher_student_work(:'tcls', '00000000-0000-0000-0000-00000000000
 \set ON_ERROR_STOP 1
 select count(*) = 1 as one_left from public.teacher_roster(:'tcls') \gset
 \if :one_left \else \echo 'FAIL leaving removes the student from the roster' \quit \endif
+reset role;
+select count(*) = 1 as still_ping from public.class_pings where class_id = :'tcls' \gset
+\if :still_ping \else \echo 'FAIL the ping stays while the lesson runs' \quit \endif
+set role authenticated;
 select public.teacher_delete_class(:'tcls') is null as deleted_cls \gset
+reset role;
+select count(*) = 0 as ping_gone from public.class_pings where class_id = :'tcls' \gset
+\if :ping_gone \else \echo 'FAIL deleting the class takes its ping' \quit \endif
+set role authenticated;
 select count(*) = 0 as gone_cls from public.teacher_classes() \gset
 \if :gone_cls \else \echo 'FAIL a teacher can delete their class' \quit \endif
 reset role;

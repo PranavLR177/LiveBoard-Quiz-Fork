@@ -1,12 +1,21 @@
 // An in-memory stand-in for the parts of Supabase LiveBoard uses, wired into Playwright with page.route.
 // push_rows follows the same rules as supabase/schema.sql (revision check, owner check, server sequence).
 class FakeSupabase {
-  constructor() { this.rows = { notes: new Map(), markers: new Map(), courses: new Map() }; this.profiles = new Map(); this.gen = new Map(); this.seq = 0; this.down = false; this.calls = []; this.beforePush = null; this.refuse = new Set(); this.more = null; }
+  constructor() { this.rows = { notes: new Map(), markers: new Map(), courses: new Map() }; this.profiles = new Map(); this.gen = new Map(); this.seq = 0; this.down = false; this.calls = []; this.beforePush = null; this.refuse = new Set(); this.more = null; this.sockets = new Set(); this.pcId = 0; this.canSee = () => true; }
   genOf(uid) { return this.gen.get(uid) || 0; }
   static session(uid) {
     const now = Math.floor(Date.now() / 1000);
     return { access_token: `tok-${uid}`, refresh_token: `ref-${uid}`, token_type: "bearer", expires_in: 3600, expires_at: now + 3600, user: { id: uid, aud: "authenticated", role: "authenticated", email: `${uid.slice(-4)}@test.edu` } };
   }
+  /** Sends a database change to Realtime listeners, as the server would after a write. */
+  push(table, type, record, old = {}) {
+    for (const { ws, joins } of this.sockets) for (const j of joins) {
+      const ids = j.pc.filter(f => (f.table === table || f.table === "*") && (f.event === "*" || f.event === type)).map(f => f.id);
+      if (!ids.length || !j.uid || (type !== "DELETE" && !this.canSee(j.uid, table, record))) continue;
+      ws.send(JSON.stringify([j.jr, null, j.topic, "postgres_changes", { ids, data: { schema: "public", table, type, commit_timestamp: new Date().toISOString(), columns: [], errors: null, record: type === "DELETE" ? null : record, old_record: old } }]));
+    }
+  }
+  listening(table) { return [...this.sockets].some(s => s.joins.some(j => j.pc.some(f => f.table === table))); }
   userOf(req) { const m = /Bearer tok-([\w-]+)/.exec(req.headers()["authorization"] || ""); return m ? m[1] : null; }
   all(kind, uid) { return [...this.rows[kind].values()].filter(r => r.user_id === uid); }
   pushRows(uid, kind, rows) {
@@ -23,6 +32,28 @@ class FakeSupabase {
     });
   }
   async attach(page) {
+    // Realtime: enough of the Phoenix protocol (vsn 2.0.0, array frames) for postgres_changes. `push` sends a change
+    // to every channel listening to that table whose user `canSee(uid, table, row)`, as Realtime does with RLS.
+    await page.routeWebSocket(/sb\.test\/realtime\/v1\/websocket/, ws => {
+      const sock = { ws, joins: [] };
+      this.sockets.add(sock);
+      ws.onClose(() => this.sockets.delete(sock));
+      ws.onMessage(raw => {
+        let m; try { m = JSON.parse(String(raw)); } catch { return; }
+        const [jr, ref, topic, event, payload] = Array.isArray(m) ? m : [m.join_ref, m.ref, m.topic, m.event, m.payload];
+        const reply = response => ws.send(JSON.stringify([jr, ref, topic, "phx_reply", { status: "ok", response }]));
+        const tok = t => { const x = /^tok-([\w-]+)$/.exec(t || ""); return x ? x[1] : null; };
+        if (event === "phx_join") {
+          const pc = (payload?.config?.postgres_changes || []).map(f => ({ ...f, id: ++this.pcId }));
+          sock.joins = sock.joins.filter(j => j.topic !== topic);
+          sock.joins.push({ topic, jr, pc, uid: tok(payload?.access_token) });
+          return reply({ postgres_changes: pc });
+        }
+        if (event === "access_token") { const j = sock.joins.find(j => j.topic === topic); if (j) j.uid = tok(payload?.access_token); return; }
+        if (event === "phx_leave") { sock.joins = sock.joins.filter(j => j.topic !== topic); return reply({}); }
+        reply({});
+      });
+    });
     await page.route("http://sb.test/**", async route => {
       const req = route.request(), url = new URL(req.url()), uid = this.userOf(req);
       this.calls.push(`${req.method()} ${url.pathname}`);

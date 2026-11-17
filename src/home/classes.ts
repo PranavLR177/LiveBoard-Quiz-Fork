@@ -4,6 +4,7 @@ import { classes as src } from "../classSource";
 import { isDue, recallable } from "../study";
 import { classroomUrl } from "../role";
 import { openClassroom } from "../classroom/open";
+import { onLiveChange } from "./liveNotice";
 import { $, esc, reducedMotion, toast } from "../util";
 import type { Course } from "../types";
 
@@ -244,7 +245,12 @@ export function renderClasses(root: HTMLElement, h: Handlers): () => void {
 
   paint();
   void load();
-  // a teacher starting a lesson shows up here without a reload
-  const poll = setInterval(() => { if (document.visibilityState === "visible" && !v.preview && !v.leaving) void load(); }, 30000);
-  return () => { alive = false; clearInterval(poll); };
+  // a teacher starting or ending a lesson is pushed here (src/home/liveNotice.ts); nothing asks on a timer
+  const off = onLiveChange(now => {
+    if (!v.list) return;
+    for (const c of v.list) { const n = now.find(x => x.id === c.id); if (n) { c.liveRoom = n.liveRoom; c.liveTitle = n.liveTitle; } }
+    if (now.some(n => !v.list!.some(c => c.id === n.id))) { void load(); return; }
+    if (!v.preview && !v.leaving) paint();
+  });
+  return () => { alive = false; off(); };
 }

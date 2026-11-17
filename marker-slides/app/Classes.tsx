@@ -40,9 +40,10 @@ export default function Classes(){
   useEffect(()=>{
     if(!api){setAccount(null);return}
     api.account().then(a=>{setAccount(a);if(a)return refresh().catch(e=>setError(e.message))}).catch(()=>setAccount(null));
-    // a class going live (from another tab) or a student joining shows up without a reload
-    const t=setInterval(()=>{if(document.visibilityState==='visible')refresh().catch(()=>{})},30000);
-    return()=>clearInterval(t);
+    // coming back to the tab picks up students who joined meanwhile; nothing asks on a timer
+    const back=()=>{if(document.visibilityState==='visible')refresh().catch(()=>{})};
+    document.addEventListener('visibilitychange',back);
+    return()=>document.removeEventListener('visibilitychange',back);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
   useEffect(()=>{

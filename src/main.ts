@@ -183,7 +183,7 @@ async function seedWelcome() {
 <p>To place your own, select any words in this note and press <strong>Place marker</strong>. Then type what you want: explain it, expand it, calculate something, turn it into a list, draw it, or link it to another note.</p>
 <p>On an empty line, tap the <strong>+</strong> in the margin to write or generate from a marker, like "outline what I know about this topic".</p>
 <p></p>
-<p>Every marker remembers how well you know it. Each morning, the dial's <strong>Start recall</strong> button quizzes you on what you marked, and your answers move markers from unsure to mastered.</p>
+<p>Every marker remembers how well you know it. Each morning, the <strong>Recall</strong> tab on the left edge of the home screen quizzes you on what you marked, and your answers move markers from unsure to mastered.</p>
 <p>Need bold, headings or lists by hand? Tap <strong>Aa</strong> at the top of a note to show the classic tools.</p>`;
   await putNote({ ...n, html, plain: html.replace(/<[^>]+>/g, " ") });
   await putMeta({ seeded: true, welcomeId: n.id });
