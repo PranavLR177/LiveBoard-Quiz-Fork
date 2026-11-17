@@ -12,7 +12,7 @@ import { pulse, recolor, startBezel, stopBezel } from "./bezel";
 import { openCram } from "./cram";
 import { onTheme } from "../theme";
 import { closeShelf, openShelf } from "./shelf";
-import { calendarChip, wireCalendar } from "./calendar";
+import { calendarChip, closeCalendar, wireCalendar } from "./calendar";
 import { getRole, groupWord } from "../role";
 import { cleanFolder } from "./folderLook";
 import { inkOn as folderInk, openFolderEditor } from "./folders";
@@ -118,7 +118,7 @@ async function renderMorning() {
         <div class="note">${studiedOn(Date.now()) ? "Today is done. " : ""}Each time you get one right, it comes back later: a day, then a few days, then a week.</div></div></div></div>
     <div class="mhead"><h1 class="greet">${esc(greet)}</h1>
       <div class="msub"><span class="mline">${line}</span></div></div>
-    <div class="mside right">${calendarChip(pop === "cal")}${exams.map((x, xi) => {
+    <div class="mside right">${calendarChip()}${exams.map((x, xi) => {
       const left = x.counts[0] + x.counts[1];
       return `<div class="lbwrap ${xi ? "later" : ""}"><button class="chip examchip" data-popbtn="exam:${x.courseId}" aria-expanded="${pop === "exam:" + x.courseId}" title="${esc(x.name)} exam ${inDays(x.days)} · ${x.pct}% ready">${ring(x.pct, x.color)}<b>${x.days === 0 ? "Today" : x.days + "d"}</b><small>${esc(x.name)}</small></button>
       <div class="lbpop exampop" data-pop="exam:${x.courseId}" ${pop === "exam:" + x.courseId ? "" : "hidden"}><h3>${esc(x.name)} exam · ${inDays(x.days)}</h3>
@@ -498,6 +498,7 @@ export function destroyHome() {
   cancelAnimationFrame(raf);
   off.splice(0).forEach(f => f());
   if (R) closeSheet(true);
+  closeCalendar(true);
   R = null;
   pop = null;
   document.querySelector("#recallSlip")?.remove();

@@ -30,6 +30,18 @@ for (const [said, want] of cases) {
   for (const k of Object.keys(want)) assert.equal(got[k], want[k], `${JSON.stringify(said)} → ${k}: ${JSON.stringify(got)}`);
   if (!("courseId" in want)) assert.equal(got.courseId, null, `${said}: no course`);
 }
+// what it is, when in the day, and whether it repeats
+const more = [
+  ["chem midterm december 3rd at 2pm", { title: "Midterm", kind: "exam", time: "14:00", courseId: "chem", date: "2026-12-03" }],
+  ["study group every wednesday at 7", { title: "Study group", kind: "study", time: "19:00", repeat: "weekly", date: "2026-11-18" }],
+  ["dentist appointment friday at 10:30 am", { title: "Dentist appointment", kind: "event", time: "10:30", date: "2026-11-20" }],
+  ["econ lecture every monday at noon", { title: "Lecture", kind: "event", time: "12:00", repeat: "weekly", courseId: "econ", date: "2026-11-23" }],
+  ["essay due friday", { kind: "deadline", time: null, repeat: null }]
+];
+for (const [said, want] of more) {
+  const got = hear(said, courses, now);
+  for (const k of Object.keys(want)) assert.equal(got[k], want[k], `${JSON.stringify(said)} → ${k}: ${JSON.stringify(got)}`);
+}
 // on a Friday, "next tuesday" is four days on, not eleven
 assert.equal(hear("quiz next tuesday", [], new Date(2026, 10, 20, 9)).date, "2026-11-24");
-console.log(`PASS: ${cases.length + 1} spoken dates, titles and courses read exactly (relative days, weekdays, "next", month names, ordinals, numeric dates, end of week/month).`);
+console.log(`PASS: ${cases.length + more.length + 1} spoken dates, titles and courses read exactly (relative days, weekdays, "next", month names, ordinals, numeric dates, end of week/month, times, kinds, weekly repeats).`);

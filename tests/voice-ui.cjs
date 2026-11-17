@@ -46,7 +46,7 @@ const FAKE = () => {
   await p.goto(BASE); await p.waitForSelector("#dial"); await p.waitForTimeout(2200);
 
   // ---- the calendar: Say it
-  await p.click("#calBtn"); await p.waitForSelector("#calVoice");
+  await p.click("#calBtn"); await p.waitForSelector(".calsheet #calVoice");
   await p.click("#calVoice");
   ok(await listening(), "Say it starts listening");
   await say("essay draft due next", false);
@@ -63,15 +63,15 @@ const FAKE = () => {
   ok(/No day heard/.test(await p.textContent("#calHeard .vdone")) && (await p.inputValue("#calTitle")) === "Call the advisor", "with no day said, it fills in the title and asks for the day instead of guessing");
 
   // ---- the calendar: hold the chip
-  await p.keyboard.press("Escape"); await p.mouse.click(5, 840); await p.waitForTimeout(200);
+  await p.keyboard.press("Escape"); await p.waitForSelector(".calsheet", { state: "detached" });
   const chip = await p.$("#calBtn"), box = await chip.boundingBox();
   await p.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await p.mouse.down(); await p.waitForTimeout(600);
   ok(await listening() && await p.isVisible("#calHold"), "holding the calendar chip listens, with a bubble under it");
   await say("problem set in 3 days");
   await p.mouse.up();
   await p.waitForSelector("#calHold .vdone", { timeout: 3000 });
-  ok(/Added/.test(await p.textContent("#calHold")) && !(await p.isVisible(".calpop")), "letting go adds it, without opening the calendar");
-  await p.click("#calBtn");
+  ok(/Added/.test(await p.textContent("#calHold")) && !(await p.$(".calsheet")), "letting go adds it, without opening the calendar");
+  await p.click("#calBtn"); await p.waitForSelector(".calsheet");
   ok((await p.$$eval(".callist .ctitle", xs => xs.map(x => x.textContent))).includes("Problem set"), "and it's in the calendar");
   await p.keyboard.press("Escape");
 
