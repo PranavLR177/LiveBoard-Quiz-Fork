@@ -1,7 +1,8 @@
 import { courseColor, courseName, liveCourses, liveMarkers, liveNotes, note, putMeta, putLocalMeta, state, streak, course } from "../store";
 import { leaderboard, currentUser } from "../sync";
 import type { Course, Marker, Note } from "../types";
-import { $, agoLong, DAY, dayKey, esc, H, reducedMotion, wrapDeg } from "../util";
+import { $, agoLong, DAY, dayKey, esc, H, reducedMotion, toast, wrapDeg } from "../util";
+import { canListen, hush, listen, MIC, say, type Listening } from "../voice";
 import { setPendingOpen, TYPE_INFO } from "../editor/markerBox";
 import { aiHealth, askMarker } from "../ai";
 import { compareAnswer, fingerprint, forecast, gradeMarker, isDue, recallable, recallText, studiedOn, upcomingExams } from "../study";
@@ -45,7 +46,7 @@ const ARC_END = 258;
 
 interface Item { b: Band; label: string; ns: Note[]; w: number; loose?: boolean; more?: boolean; custom?: Course; add?: boolean; span: number; ang: number; W: number; x: number; y: number; near: number; tilt: number }
 /** One recall session. `typed` is what the student wrote from memory for the current question; `missed` collects the ones answered "Again". */
-interface Recall { queue: string[]; i: number; revealed: boolean; got: number; done: boolean; k: number; typed: string; missed: string[]; cram: string | null; ai: string | null; checking: boolean; flipped?: boolean; results: boolean[] }
+interface Recall { queue: string[]; i: number; revealed: boolean; got: number; done: boolean; k: number; typed: string; missed: string[]; cram: string | null; ai: string | null; checking: boolean; flipped?: boolean; results: boolean[]; spoke?: boolean }
 
 let items: Item[] = [];
 let rot = 0, target = 0, sel = -1, hoverF = -1, hoverNote: string | null = null, dragging = false, lastDrawn: number | null = null, raf = 0;
@@ -871,12 +872,13 @@ function showRecall() {
   el.innerHTML = `<div class="rscard${flip ? " flip" : ""}${R.revealed ? " back" : ""}" style="--c:${courseColor(n.courseId)}"><div class="rtop"><span class="pill" style="background:${courseColor(n.courseId)}">${esc(courseName(n.courseId))}</span><span class="rcount">${R.i + 1} / ${R.queue.length}</span></div>
     <div class="rq">${esc(q)}</div><div class="rsrc">from <b>${esc(n.title)}</b></div>
     ${R.revealed
-      ? `${R.typed ? `<div class="ryou"><small>You wrote</small>${esc(R.typed)}</div>` : ""}
+      ? `${R.typed ? `<div class="ryou"><small>${R.spoke ? "You said" : "You wrote"}</small>${esc(R.typed)}</div>` : ""}
          <div class="ra">${cmp ? cmp.html : esc(a)}</div>
          ${cmp && cmp.total ? `<div class="rscore ${strong ? "ok" : "low"}"><b>${cmp.hit} of ${cmp.total}</b> key ideas${aiOn && !R.ai ? ` · <button class="rcheck" id="rCheck" ${R.checking ? "disabled" : ""}>${R.checking ? "Checking…" : "Check with AI"}</button>` : ""}</div>` : ""}
          ${R.ai ? `<div class="rai">${esc(R.ai)}</div>` : ""}
          <div class="racts"><button class="again">Again<kbd>1</kbd></button><button class="got">Got it<kbd>2</kbd></button></div>`
-      : `<input id="rAns" class="rans" autocomplete="off" autocapitalize="sentences" maxlength="400" placeholder="Type what you remember (optional)" aria-label="Your answer from memory">
+      : `<div class="ransrow"><input id="rAns" class="rans" autocomplete="off" autocapitalize="sentences" maxlength="400" placeholder="${canListen() ? "Type it, or say it out loud" : "Type what you remember (optional)"}" aria-label="Your answer from memory">${canListen() ? `<button class="rmic" id="rMic" aria-pressed="false" aria-label="Say your answer out loud" title="Say it out loud">${MIC}</button>` : ""}</div>
+         ${beadsHTML(a)}
          <button class="openlink" id="reveal">Show answer</button>`}</div>`;
   if (R.revealed) {
     const again = el.querySelector<HTMLButtonElement>(".again")!, got = el.querySelector<HTMLButtonElement>(".got")!;
@@ -889,10 +891,86 @@ function showRecall() {
     const b = $("#reveal")!, inp = $("#rAns") as HTMLInputElement;
     b.onclick = reveal;
     inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); reveal(); } };
+    inp.oninput = () => fillBeads(inp.value, a);
+    const mic = $("#rMic");
+    if (mic) mic.onclick = () => (mic.getAttribute("aria-pressed") === "true" ? heard?.stop() : sayAnswer(a));
     // a mouse or keyboard goes straight to typing; on touch, focusing would cover the dial with the on-screen keyboard
-    (matchMedia("(pointer: fine)").matches ? inp : b).focus({ preventScroll: true });
+    if (!loud()) (matchMedia("(pointer: fine)").matches ? inp : b).focus({ preventScroll: true });
   }
   setProg();
+  if (loud()) void loudTurn(m, q, a, cmp);
+}
+
+/* ---------- recall out loud ----------
+   Say it back: the mic beside the answer box listens while you explain the answer in your own words. A row of beads,
+   one per key idea in the hidden answer, fills as you say them, so you can tell you've only got two of five without
+   seeing the answer. A pause turns the card over with what you said marked against it.
+   Out loud (the headphones in the sheet's corner) does it hands-free, for a walk to class: each question is read to
+   you, you answer aloud, the answer is read back, and "got it" or "again" grades it. */
+let heard: Listening | null = null, turn = "";
+const LOUD = "lb-recall-loud";
+const loud = () => { try { return canListen() && localStorage.getItem(LOUD) === "1"; } catch { return false; } };
+function beadsHTML(a: string) {
+  const total = compareAnswer("", a).total;
+  return total > 1 ? `<div class="rbeads" id="rBeads" aria-live="polite" aria-label="Key ideas you've said: 0 of ${total}" data-total="${total}">${"<i></i>".repeat(Math.min(total, 12))}<small>0 of ${total} key ideas</small></div>` : "";
+}
+function fillBeads(text: string, a: string) {
+  const row = $("#rBeads");
+  if (!row) return;
+  const { hit, total } = compareAnswer(text, a);
+  row.classList.toggle("on", !!text.trim());
+  row.querySelectorAll("i").forEach((b, i) => { const was = b.classList.contains("hit"); b.classList.toggle("hit", i < hit); if (!was && i < hit && !reducedMotion()) b.animate([{ transform: "scale(1.9)" }, { transform: "scale(1)" }], { duration: 380, easing: "cubic-bezier(.2,.9,.3,1.4)" }); });
+  row.querySelector("small")!.textContent = `${hit} of ${total} key ideas`;
+  row.setAttribute("aria-label", `Key ideas you've said: ${hit} of ${total}`);
+}
+/** Listens for the answer to the card on screen; a pause, or the mic again, turns it over. */
+function sayAnswer(a: string, then?: () => void) {
+  if (!R || R.revealed) return;
+  const card = $(".rscard"), mic = $("#rMic"), inp = $("#rAns") as HTMLInputElement | null, at = R.i;
+  const off = () => { card?.classList.remove("listening"); mic?.setAttribute("aria-pressed", "false"); heard = null; };
+  heard = listen({
+    pauseMs: 2200,
+    onWords: t => { if (!R || R.i !== at || R.revealed) return; if (inp) inp.value = t; fillBeads(t, a); },
+    onDone: t => { off(); if (!R || R.i !== at || R.revealed) return; if (inp && t) inp.value = t; R.spoke = !!t; if (t || !loud()) reveal(); then?.(); },
+    onError: msg => { off(); toast(msg, 4200); }
+  });
+  if (heard) { card?.classList.add("listening"); mic?.setAttribute("aria-pressed", "true"); }
+}
+/** One step of hands-free recall, run once per card side. */
+async function loudTurn(m: Marker, q: string, a: string, cmp: { hit: number; total: number } | null) {
+  if (!R) return;
+  const key = `${R.i}:${R.revealed}`;
+  if (turn === key) return;
+  turn = key;
+  const still = () => R && turn === key && $("#recallSheet");
+  if (!R.revealed) {
+    await say(q);
+    if (still()) sayAnswer(a);
+    return;
+  }
+  await say(`${cmp && cmp.total ? `You said ${cmp.hit} of ${cmp.total} key ideas. ` : ""}${a.slice(0, 400)}. Got it, or again?`);
+  if (!still()) return;
+  heard = listen({
+    pauseMs: 1300,
+    onDone: t => {
+      heard = null;
+      if (!still()) return;
+      const w = t.toLowerCase();
+      if (/\b(stop|done|finish|enough|quit)\b/.test(w)) endRecall();
+      else if (/\b(again|no|nope|missed|didn'?t|not|wrong)\b/.test(w)) void grade(m, false);
+      else if (/\b(got|yes|yeah|yep|knew|right|correct|easy|next)\b/.test(w)) void grade(m, true);
+      else if (/\b(repeat|again please|what)\b/.test(w)) { turn = ""; void loudTurn(m, q, a, cmp); }
+      else { turn = ""; void loudTurn(m, q, a, cmp); }
+    },
+    onError: msg => { heard = null; toast(msg, 4200); }
+  });
+}
+function setLoud(on: boolean) {
+  try { localStorage.setItem(LOUD, on ? "1" : "0"); } catch { /* storage blocked */ }
+  $("#rsLoud")?.setAttribute("aria-pressed", String(on));
+  heard?.cancel(); heard = null; hush(); turn = "";
+  if (on) toast("Out loud: questions are read to you. Answer aloud, then say “got it” or “again”.", 4200);
+  showRecall();
 }
 /** Ask the AI whether a typed answer captures the stored one. Optional, one tap, and never changes the grade by itself. */
 async function aiCheck(id: string, q: string, a: string) {
@@ -916,7 +994,7 @@ async function grade(m: Marker, good: boolean) {
   if (good) R.got++; else R.missed.push(m.id);
   R.results.push(good);
   R.i++;
-  R.revealed = false; R.flipped = false;
+  R.revealed = false; R.flipped = false; R.spoke = false;
   R.typed = "";
   R.ai = null;
   R.checking = false;
@@ -940,6 +1018,7 @@ function showDone() {
   $("#recallSheet")?.style.setProperty("--hc", "var(--g1)");
   $("#doneBtn")!.onclick = endRecall;
   $("#doneBtn")!.focus({ preventScroll: true });
+  if (loud()) void say(`Recall done. ${R!.got} of ${R!.queue.length} right.`);
   el.querySelectorAll<HTMLButtonElement>("[data-shaky]").forEach(b => b.onclick = () => {
     const m = state.markers.get(b.dataset.shaky!);
     if (!m) return;
@@ -1001,12 +1080,15 @@ function openSheet() {
   wrap.innerHTML = `<section class="rspanel" role="dialog" aria-modal="true" aria-labelledby="rsTitle">
       <div class="rsbar" id="rsBar" aria-hidden="true"><i></i></div>
       <header class="rshead"><div><span class="rskick">${R?.cram === "Exit ticket" ? "Exit ticket" : R?.cram ? "Cram" : "Recall"}</span><h2 id="rsTitle">${R?.cram === "Exit ticket" ? "What did today's lesson leave you with?" : "What do you remember?"}</h2></div>
-        <button class="rsclose" id="rsClose" aria-label="Close recall (Esc)" title="Close (Esc)">×</button></header>
+        <span class="rsacts">${canListen() ? `<button class="rsloud" id="rsLoud" aria-pressed="${loud()}" title="Out loud: questions read to you, answered by voice, hands-free"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4.500" height="6.500" rx="2"/><rect x="16.500" y="14" width="4.500" height="6.500" rx="2"/></svg><span>Out loud</span></button>` : ""}
+        <button class="rsclose" id="rsClose" aria-label="Close recall (Esc)" title="Close (Esc)">×</button></span></header>
       <div class="rsbody"><div class="rsstage" id="rsStage" aria-live="polite"></div><aside class="rsside" id="rsSide" aria-label="Questions"></aside></div>
     </section>`;
   document.body.appendChild(wrap);
   document.querySelector("#recallSlip")?.classList.add("out");
   wrap.querySelector<HTMLButtonElement>("#rsClose")!.onclick = endRecall;
+  const lb = wrap.querySelector<HTMLButtonElement>("#rsLoud");
+  if (lb) lb.onclick = () => setLoud(lb.getAttribute("aria-pressed") !== "true");
   wrap.addEventListener("pointerdown", e => { if (e.target === wrap) endRecall(); }); // the faint notes behind close it
   if (reducedMotion()) return;
   const panel = wrap.querySelector<HTMLElement>(".rspanel")!;
@@ -1019,6 +1101,7 @@ function openSheet() {
   panel.querySelectorAll<HTMLElement>(".rshead, .rsstage, .rsside").forEach((x, i) => x.animate([{ opacity: 0, transform: "translateX(-40px)" }, { opacity: 1, transform: "none" }], { duration: 460, delay: 260 + i * 70, easing: "cubic-bezier(.2, .8, .2, 1)", fill: "backwards" }));
 }
 function closeSheet(now = false) {
+  heard?.cancel(); heard = null; hush(); turn = "";
   const wrap = document.querySelector<HTMLElement>("#recallSheet");
   document.querySelector("#recallSlip")?.classList.remove("out");
   if (!wrap) return;
