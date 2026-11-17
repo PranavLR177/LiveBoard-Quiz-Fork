@@ -39,10 +39,11 @@ export function roleFromAddress() {
 
 /** The classroom side (presentations, live classes), bundled with the app at /classroom.html on the same origin.
     It reads the same light/dark choice and storage, so the link carries nothing but which screen to open. */
-export function classroomUrl(role: "student" | "teacher") {
+export function classroomUrl(role: "student" | "teacher", room?: { code: string; name?: string }) {
   const url = new URL("classroom.html", location.href);
   url.search = ""; url.hash = "";
   url.searchParams.set("view", role === "student" ? "student" : "library");
+  if (room) { url.searchParams.set("room", room.code); if (room.name) url.searchParams.set("name", room.name); }
   return url.href;
 }
 

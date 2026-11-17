@@ -16,6 +16,8 @@ import { mdToNoteHtml } from "./md";
 import { getRole, pickRole, roleFromAddress } from "./role";
 import { installDevSwitch } from "./devSwitch";
 import { classroomShowing, onClassroomLeave, openClassroom } from "./classroom/open";
+import { renderClasses } from "./home/classes";
+import { check as checkLive, startLiveNotices } from "./home/liveNotice";
 
 const stage = () => $("#stage")!;
 let currentNote: string | null = null;
@@ -26,9 +28,20 @@ async function route() {
   const revision = ++routeRevision;
   closeTeacher?.(); closeTeacher = null;
   const teacher = location.hash === "#teacher";
+  // #account: a link in from the classroom ("sign in"); it opens Settings over the home screen
+  if (location.hash === "#account") { history.replaceState(null, "", location.pathname + location.search); showHome(); openSettings("account", refresh); return; }
   // a teacher's home is the presentations side; Worksheets (#teacher) and any note link still open here
   if (!teacher && !location.hash && getRole() === "teacher" && toPresentations()) return;
   document.querySelector('#teacherLink')?.setAttribute('aria-current', teacher ? 'page' : 'false');
+  document.querySelector('#discussionJoin')?.setAttribute('aria-current', location.hash === "#classes" ? 'page' : 'false');
+  if (location.hash === "#classes") {
+    destroyHome();
+    await leaveNote();
+    if (revision !== routeRevision) return;
+    stage().scrollTop = 0;
+    closeTeacher = renderClasses(stage(), { openNote, newBlank, home: goHome, openSettings: (sec?: string) => openSettings(sec, () => { refresh(); void checkLive(); if (location.hash === "#classes") route(); }) });
+    return;
+  }
   if (teacher) {
     destroyHome();
     await leaveNote();
@@ -227,8 +240,8 @@ async function boot() {
   tb.onclick = toggleTheme; onTheme(labelTheme); labelTheme();
   const join = $("#discussionJoin") as HTMLAnchorElement;
   const pres = $("#presentationsLink") as HTMLAnchorElement;
-  join.href = classroomUrl("student"); pres.href = classroomUrl("teacher");
-  if (import.meta.env.VITE_ARTIFACT) for (const [a, view] of [[join, "student"], [pres, "teacher"]] as const) a.addEventListener("click", e => { e.preventDefault(); void openClassroom(view); });
+  join.href = "#classes"; pres.href = classroomUrl("teacher");
+  if (import.meta.env.VITE_ARTIFACT) pres.addEventListener("click", e => { e.preventDefault(); void openClassroom("teacher"); });
   onClassroomLeave(() => { void route(); refresh(); });
   $("#settingsBtn")!.onclick = () => openSettings(undefined, refresh);
   // a study session ends with a quiz, on the dial, of exactly what was marked during it
@@ -244,6 +257,7 @@ async function boot() {
   });
   addEventListener("hashchange", route);
   route();
+  startLiveNotices();
   installUpdates();
   onChange(k => { if (k !== "meta") refresh(); });
   // class questions a student added during a live lesson arrive as notes: now, and whenever this tab is looked at again

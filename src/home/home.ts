@@ -1,5 +1,5 @@
 import { courseColor, courseName, liveCourses, liveMarkers, liveNotes, note, putMeta, putLocalMeta, state, streak, course } from "../store";
-import { leaderboard, currentUser, syncConfigured } from "../sync";
+import { leaderboard, currentUser } from "../sync";
 import type { Course, Marker, Note } from "../types";
 import { $, agoLong, DAY, dayKey, esc, H, reducedMotion, wrapDeg } from "../util";
 import { setPendingOpen, TYPE_INFO } from "../editor/markerBox";
@@ -126,7 +126,7 @@ async function renderMorning() {
     }).join("")}
     ${!student ? "" : `<div class="lbwrap" id="lbWrap">${c?.classId && currentUser()
       ? `<button class="chip lbchip" id="lbBtn" data-popbtn="lb" aria-expanded="${pop === "lb"}" aria-controls="lbPop"><span class="lbico" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="6" cy="5.5" r="2.4" fill="currentColor"/><path d="M1.6 13c.3-2.5 2-3.9 4.4-3.9s4.1 1.4 4.4 3.9z" fill="currentColor"/><circle cx="11.6" cy="6.2" r="1.8" fill="currentColor" opacity=".6"/><path d="M11 9.4c2 .1 3.2 1.3 3.5 3.6h-2.6" fill="currentColor" opacity=".6"/></svg></span><b id="lbRank">#–</b><small>in ${esc(c.name)}</small></button><div class="lbpop" id="lbPop" data-pop="lb" ${pop === "lb" ? "" : "hidden"}><h3>${esc(c.name)} · this week</h3><div id="lbRows">Loading…</div></div>`
-      : `<button class="chip lbchip" id="lbJoin" title="Join your class to see its leaderboard"><span class="lbico" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="6" cy="5.5" r="2.4" fill="currentColor"/><path d="M1.6 13c.3-2.5 2-3.9 4.4-3.9s4.1 1.4 4.4 3.9z" fill="currentColor"/><circle cx="11.6" cy="6.2" r="1.8" fill="currentColor" opacity=".6"/><path d="M11 9.4c2 .1 3.2 1.3 3.5 3.6h-2.6" fill="currentColor" opacity=".6"/></svg></span><small>${syncConfigured() ? "Join a class" : "Classes"}</small><svg class="lbgo" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`}</div>`}</div>`;
+      : `<button class="chip lbchip" id="lbJoin" title="Join your class to see its leaderboard"><span class="lbico" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="6" cy="5.5" r="2.4" fill="currentColor"/><path d="M1.6 13c.3-2.5 2-3.9 4.4-3.9s4.1 1.4 4.4 3.9z" fill="currentColor"/><circle cx="11.6" cy="6.2" r="1.8" fill="currentColor" opacity=".6"/><path d="M11 9.4c2 .1 3.2 1.3 3.5 3.6h-2.6" fill="currentColor" opacity=".6"/></svg></span><small>Classes</small><svg class="lbgo" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`}</div>`}</div>`;
   el.querySelectorAll<HTMLButtonElement>(".scope button").forEach(b => b.onclick = async e => { e.stopPropagation(); pop = null; await putLocalMeta({ scope: b.dataset.s as "due" }); renderMorning(); });
   $("#recallBtn")!.onclick = () => startRecall();
   el.querySelectorAll<HTMLButtonElement>("[data-popbtn]").forEach(b => b.onclick = e => {
@@ -140,7 +140,7 @@ async function renderMorning() {
   });
   wireCalendar(el, renderMorning, (noteId, markerId) => { closePop(); if (markerId) setPendingOpen(markerId); handlers?.openNote(noteId); });
   const join = $("#lbJoin");
-  if (join) join.onclick = () => handlers?.openSettings("classes");
+  if (join) join.onclick = () => { location.hash = "classes"; };
   if ($("#lbBtn") && c?.classId) {
     const rows = await leaderboard(c.classId);
     if (!alive || !$("#lbRows")) return;

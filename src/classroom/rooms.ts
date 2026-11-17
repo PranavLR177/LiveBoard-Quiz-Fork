@@ -1,16 +1,13 @@
-import { createClient } from "@supabase/supabase-js";
 import type { RoomsBackend } from "../../marker-slides/app/roomsApi";
+import { classroomClient } from "./client";
 
 /* Live classes on LiveBoard's own Supabase project (the room_* functions in supabase/schema.sql), so the deployed app
-   needs no second server. Students join with the room code and don't sign in; the teacher's control is the room secret
-   kept in their browser. This client never signs in and keeps no session: it only calls those functions with the
-   public anon key. */
-const URL_ = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-
+   needs no second server. Students join with the room code and don't need to sign in; the teacher's control is the
+   room secret kept in their browser. A signed-in teacher's session goes along, which is how a room can be tied to one
+   of their classes (room_for_class). */
 export function supabaseRooms(): RoomsBackend | null {
-  if (!URL_ || !KEY) return null;
-  const sb = createClient(URL_, KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: "lb-classroom" } });
+  const sb = classroomClient();
+  if (!sb) return null;
   const shots = new Map<string, string>(); // marker id -> its screenshot, fetched once
   const fail = (e: { message?: string } | null) => { if (e) throw new Error(e.message || "Could not reach the class. Please try again."); };
   return {

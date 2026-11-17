@@ -1,7 +1,7 @@
 // An in-memory stand-in for the parts of Supabase LiveBoard uses, wired into Playwright with page.route.
 // push_rows follows the same rules as supabase/schema.sql (revision check, owner check, server sequence).
 class FakeSupabase {
-  constructor() { this.rows = { notes: new Map(), markers: new Map(), courses: new Map() }; this.profiles = new Map(); this.gen = new Map(); this.seq = 0; this.down = false; this.calls = []; this.beforePush = null; this.refuse = new Set(); }
+  constructor() { this.rows = { notes: new Map(), markers: new Map(), courses: new Map() }; this.profiles = new Map(); this.gen = new Map(); this.seq = 0; this.down = false; this.calls = []; this.beforePush = null; this.refuse = new Set(); this.more = null; }
   genOf(uid) { return this.gen.get(uid) || 0; }
   static session(uid) {
     const now = Math.floor(Date.now() / 1000);
@@ -68,6 +68,11 @@ class FakeSupabase {
         const gt = Number((url.searchParams.get("seq") || "gt.0").replace("gt.", ""));
         const out = this.all(kind, uid).filter(r => r.seq > gt).sort((a, b) => a.seq - b.seq).slice(0, 500).map(r => ({ id: r.id, data: r.data, rev: r.rev, seq: r.seq, deleted: r.deleted }));
         return json(out);
+      }
+      if (this.more && url.pathname.startsWith("/rest/v1/rpc/")) {
+        // other server functions (classes, live rooms) from another fake: tests/fake-classes.cjs
+        try { const r = await this.more(url.pathname.replace("/rest/v1/rpc/", ""), JSON.parse(req.postData() || "{}"), uid); if (r !== undefined) return json(r); }
+        catch (e) { return json({ code: "P0001", message: e.message }, 400); }
       }
       return json({ message: "not faked: " + url.pathname }, 404);
     });

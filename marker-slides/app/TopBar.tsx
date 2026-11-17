@@ -5,7 +5,7 @@ import { embedded,go,toNotes } from './nav';
 
 /* The same top bar as the notes side of LiveBoard (index.html): mark and wordmark, where you are, light or dark,
    and the way across to the other side. One bar on every classroom screen, so the two halves read as one app. */
-export default function TopBar({role,here,onHome,status,children}:{role:'teacher'|'student'|'projector';here?:'library'|'deck';onHome?:()=>void;status?:ReactNode;children?:ReactNode}){
+export default function TopBar({role,here,onHome,status,children}:{role:'teacher'|'student'|'projector';here?:'library'|'deck'|'classes';onHome?:()=>void;status?:ReactNode;children?:ReactNode}){
   const [dark,setDark]=useState(false);
   useEffect(()=>{setDark(isDark());const off=onTheme(()=>setDark(isDark()));return()=>{off()}},[]);
   const inside=embedded(); // embedded in the notes page: the links below switch sides in place instead of loading a page
@@ -20,6 +20,7 @@ export default function TopBar({role,here,onHome,status,children}:{role:'teacher
     {status&&<span className="lb-status">{status}</span>}
     <span className="lb-spacer"/>
     {role==='teacher'&&here!=='deck'&&<a className="lb-btn lb-home" href={home} aria-current={here==='library'?'page':undefined} title="Your presentations and live classes" onClick={toHome}>Presentations</a>}
+    {role==='teacher'&&here!=='deck'&&<a className="lb-btn" href={inside?'#':location.pathname+'?view=classes'} aria-current={here==='classes'?'page':undefined} title="Your classes: students, their notes and progress" onClick={event=>{if(inside){event.preventDefault();go('?view=classes')}}}>Classes</a>}
     {role==='teacher'&&worksheets&&<a className="lb-btn" href={worksheets} onClick={leave('teacher','#teacher')} title="Turn a PDF or document into a worksheet with marker questions and hints">Worksheets</a>}
     {children}
     {role!=='projector'&&<button className="lb-iconbtn" onClick={toggleTheme} aria-label={dark?'Switch to light mode':'Switch to dark mode'} title="Light or dark">

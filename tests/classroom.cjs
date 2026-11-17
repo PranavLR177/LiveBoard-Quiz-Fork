@@ -94,8 +94,10 @@ const tokens = p => p.evaluate(() => { const c = getComputedStyle(document.docum
   // ---- a student joins from their notes
   const s = await open("student", 1100);
   await s.goto(BASE + "/"); await s.waitForSelector(".fcard", { timeout: 15000 });
-  ok((await s.$eval("#discussionJoin", e => e.textContent)) === "Join\u00a0class", "the header reads “Join class” with a space that the pill's layout can't swallow");
-  await s.click("#discussionJoin"); await s.waitForSelector(".join-card");
+  ok((await s.$eval("#discussionJoin", e => e.textContent)) === "Classes", "the header has Classes, where a student joins a class or a live lesson");
+  await s.click("#discussionJoin"); await s.waitForSelector("#bCode");
+  await s.fill("#bCode", code.toLowerCase()); await s.click("#bGo"); await s.waitForSelector(".join-card");
+  ok((await s.inputValue('input[placeholder="8-character room code"], input[placeholder="8-character code"]')) === code, "a lesson code typed under Classes arrives filled in on the join screen");
   ok(new URL(s.url()).pathname === "/classroom.html" && await s.isVisible('.lb-top a:has-text("My notes")') && !(await s.$('.lb-top a:has-text("Worksheets")')), "Join class opens the join screen under the same top bar, with a way back to My notes and no teaching tools");
   await s.fill('input[placeholder="First name or nickname"]', "Maya");
   await s.fill('input[placeholder="8-character code"]', code.toLowerCase());

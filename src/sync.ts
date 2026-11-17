@@ -18,6 +18,9 @@ export const syncConfigured = () => !!sb;
 
 let session: Session | null = null;
 export const currentUser = () => session?.user ?? null;
+let known: () => void = () => {};
+/** Settles once start-up has asked supabase-js whether anyone is signed in (or there are no accounts here). */
+export const sessionKnown = new Promise<void>(r => { known = r; });
 export const authToken = () => session?.access_token ?? null;
 
 let pushTimer: number | undefined;
@@ -354,9 +357,12 @@ async function switchTo(owner: string | null) {
 export async function initSync(h: Hooks): Promise<boolean> {
   hooks = h;
   notice = h.notice;
-  if (!sb) return false;
-  const { data, error } = await sb.auth.getSession();
+  if (!sb) { known(); return false; }
+  let got: Awaited<ReturnType<NonNullable<typeof sb>["auth"]["getSession"]>>;
+  try { got = await sb.auth.getSession(); } catch (e) { known(); throw e; }
+  const { data, error } = got;
   session = data.session;
+  known();
   // A sign-in or sign-out that happened elsewhere (another tab, or a session that expired while closed)
   if (!error && (session?.user.id ?? null) !== state.owner) {
     if (session || navigator.onLine) { await switchTo(session?.user.id ?? null); return false; }
@@ -447,11 +453,38 @@ export async function createClass(name: string, displayName: string) {
   if (error) throw error;
   return (Array.isArray(data) ? data[0] : data) as { id: string; code: string };
 }
-export async function joinClass(code: string, displayName: string) {
+export type ClassPreview = { name: string; kind: "study" | "teacher"; teacher: string; students: number };
+export type MyClass = { id: string; name: string; code: string; kind: "study" | "teacher"; teacher: string; students: number; courseId: string | null; shares: boolean; liveRoom: string | null; liveTitle: string | null };
+/** What a class code leads to, before joining it (so a teacher's class can ask for consent first). Null: no such class. */
+export async function classPreview(code: string): Promise<ClassPreview | null> {
   if (!sb || !session) throw new Error("Sign in to join a class.");
-  const { data, error } = await sb.rpc("join_class", { p_code: code.trim().toUpperCase(), p_display: displayName });
-  if (error) throw new Error(error.message.includes("not found") ? "No class has that code." : error.message);
-  return (Array.isArray(data) ? data[0] : data) as { id: string; name: string; code: string };
+  const { data, error } = await sb.rpc("class_preview", { p_code: code.trim().toUpperCase() });
+  if (error) throw new Error(error.message);
+  const r = (Array.isArray(data) ? data[0] : data) as { name: string; kind: string; teacher_name: string | null; students: number } | undefined;
+  return r ? { name: r.name, kind: r.kind === "teacher" ? "teacher" : "study", teacher: r.teacher_name || "", students: Number(r.students) || 0 } : null;
+}
+/** Joins a class and links one of this student's courses to it. A teacher's class only takes `share: true`: the
+ *  teacher can then read that one course's notes and markers until the student leaves. */
+export async function joinClass(code: string, displayName: string, courseId: string | null = null, share = false) {
+  if (!sb || !session) throw new Error("Sign in to join a class.");
+  const { data, error } = await sb.rpc("join_class", { p_code: code.trim().toUpperCase(), p_display: displayName, p_course: courseId, p_share: share });
+  if (error) throw new Error(/not found/i.test(error.message) ? "No class has that code." : error.message);
+  return (Array.isArray(data) ? data[0] : data) as { id: string; name: string; code: string; kind: string };
+}
+export async function leaveClass(classId: string) {
+  if (!sb || !session) throw new Error("Sign in first.");
+  const { error } = await sb.rpc("leave_class", { p_class: classId });
+  if (error) throw new Error(error.message);
+}
+/** The classes this account is in, with any live lesson running for each. Null when signed out or unreachable. */
+export async function myClasses(): Promise<MyClass[] | null> {
+  if (!sb || !session) return null;
+  const { data, error } = await sb.rpc("my_classes");
+  if (error) { console.warn(error); return null; }
+  return ((data || []) as Record<string, unknown>[]).map(r => ({
+    id: String(r.id), name: String(r.name || ""), code: String(r.code || ""), kind: r.kind === "teacher" ? "teacher" : "study", teacher: String(r.teacher_name || ""),
+    students: Number(r.students) || 0, courseId: (r.course_id as string) || null, shares: !!r.shares, liveRoom: (r.live_room as string) || null, liveTitle: (r.live_title as string) || null
+  }));
 }
 export async function leaderboard(classId: string) {
   if (!sb || !session) return null;
