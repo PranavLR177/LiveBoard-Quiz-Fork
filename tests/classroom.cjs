@@ -59,25 +59,22 @@ const tokens = p => p.evaluate(() => { const c = getComputedStyle(document.docum
   ok(/Slide 2/.test(await frontSlide()) && await title() === firstDeck && /at slide 2/.test(await t.textContent(".deck-open")), "the right arrow turns to its next slide, and Open offers to start there");
   await t.click(".reel-strip button >> nth=0"); await t.waitForTimeout(100);
   ok(/Slide 1/.test(await frontSlide()), "tapping a tick on the strip brings that slide round");
-  const waiting = await t.textContent(".deck-peek >> nth=0");
-  ok(await t.isVisible(".deck-below") && !waiting.includes(firstDeck), "the other presentations peek up from the bottom of the screen");
-  await t.mouse.move(700, 400); await t.mouse.wheel(0, 240);
-  await t.waitForFunction(was => document.querySelector(".reel-hub h2")?.textContent !== was, firstDeck, { timeout: 4000 }).catch(() => {});
-  const secondDeck = await title();
-  ok(secondDeck !== firstDeck && waiting.includes(secondDeck) && /Slide 1 of/.test(await t.textContent(".reel-strip span")), "scrolling down pulls the next presentation up to the front, on its first slide");
-  ok((await t.textContent(".deck-above")).includes(firstDeck), "and the one that was in front waits just above");
-  await t.waitForTimeout(500); await t.mouse.wheel(0, -240);
-  await t.waitForFunction(was => document.querySelector(".reel-hub h2")?.textContent !== was, secondDeck, { timeout: 4000 }).catch(() => {});
-  ok(await title() === firstDeck, "scrolling up brings it back");
-  await t.click(".deck-peek >> nth=0"); await t.waitForTimeout(150);
-  ok(await title() === secondDeck, "tapping the card that peeks up pulls it up too");
-  await t.keyboard.press("ArrowUp"); await t.waitForTimeout(150);
+  // the rest sit on a shelf under it, Drive-style: a grid that peeks up from the bottom and is all there when you scroll down
+  const shelf = await t.$$eval(".shelf-card b", bs => bs.map(b => b.textContent));
+  const shelfTop = await t.$eval(".deck-shelf", e => e.getBoundingClientRect().top);
+  ok(shelf.length >= 2 && shelf[0] === firstDeck && await t.isVisible(".shelf-card.current") && shelfTop < 800, "every presentation is on a shelf under the front one, whose top shows on screen (" + Math.round(shelfTop) + "px)");
+  const before = await title();
+  await t.mouse.move(700, 400); await t.mouse.wheel(0, 900); await t.waitForTimeout(600);
+  ok(await title() === before && await t.evaluate(() => scrollY) > 100 && await t.isVisible(".shelf-card >> nth=1"), "scrolling down just scrolls to the shelf; it doesn't swap the presentation in front");
+  const secondDeck = shelf[1];
+  await t.click(".shelf-card >> nth=1"); await t.waitForFunction(() => scrollY < 5, null, { timeout: 4000 }).catch(() => {});
+  ok(await title() === secondDeck && /Slide 1 of/.test(await t.textContent(".reel-strip span")) && await t.evaluate(() => scrollY) < 5, "picking one on the shelf brings it up front, on its first slide, and goes back up to it");
   await t.fill(".reel-bar input", "zzzz no such deck");
   ok(await t.isVisible(".library-empty"), "searching for something that isn't there says so");
   await t.fill(".reel-bar input", ""); await t.waitForSelector(".reel-card.front");
 
-  await t.focus(".reel"); await t.keyboard.press("ArrowDown"); await t.waitForTimeout(150); // open the second one, so it becomes the most recent
   // ---- open a deck and start a live class
+  await t.click(".shelf-card >> nth=1"); await t.waitForFunction(was => document.querySelector(".reel-hub h2")?.textContent === was, secondDeck);
   await t.click(".deck-open"); await t.waitForSelector(".slide-canvas");
   ok(!(await t.$(".topbar")) && /Saved on this device|not saved yet/.test(await t.textContent(".lb-status")), "the editor sits under the same top bar, which says where the deck is saved");
   const backBox = await t.locator(".lb-back").boundingBox();

@@ -72,8 +72,10 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
   const [search,setSearch]=useState('');
   const [focus,setFocusRaw]=useState(0);
   const [slideAt,setSlideAt]=useState(0); // which slide of the front presentation is turned to the front
-  const [pulled,setPulled]=useState(0); // which way the front presentation last came in: 1 from below, -1 from above
-  const setFocus=(i:number)=>{setFocusRaw(i);setSlideAt(0);setPulled(0)};
+  const [arrived,setArrived]=useState(false); // the front presentation was just picked from the shelf: it rises in
+  const setFocus=(i:number)=>{setFocusRaw(i);setSlideAt(0);setArrived(false)};
+  /** Puts a presentation from the shelf in front and goes back up to it. */
+  const bringUp=(id:string)=>{const i=ordered.findIndex(d=>d.id===id);if(i<0)return;setFocusRaw(i);setSlideAt(0);setArrived(true);scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'})};
   const [viewer,setViewer]=useState<Presentation|null>(null);
   const [viewerIndex,setViewerIndex]=useState(0);
   const [markerId,setMarkerId]=useState('');
@@ -156,39 +158,11 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
     order==='updated'?Math.max(b.opened||0,b.updated||0)-Math.max(a.opened||0,a.updated||0): // most recently opened or edited first: that one is in front
     a[order].localeCompare(b[order],undefined,{numeric:true,sensitivity:'base'})||a.title.localeCompare(b.title));
   const examples=decks.filter(isExample);
-  const live=useRef({at:0,count:0,lock:false,touch:null as null|number});
-  /** Pulls another presentation to the front: +1 the one waiting below, -1 back to the one above. */
-  function pull(step:number){const s=live.current,next=Math.max(0,Math.min(s.count-1,s.at+step));if(next===s.at)return;setFocusRaw(next);setSlideAt(0);setPulled(step>0?1:-1)}
   /** Opens a presentation at a slide, and remembers it was the last one opened so it is in front next time. */
   function open(target:Presentation,slide=0){void savePresentation({...target,opened:Date.now()}).catch(()=>{}).finally(()=>go(editor(target.id,slide)))}
-  useEffect(()=>{
-    // Scrolling is how the next presentation comes up. While the page itself can still scroll that way it scrolls as usual;
-    // once it can't (normally straight away, since the home fits the screen) the scroll pulls a presentation instead.
-    const modal=()=>!!document.querySelector('.modal-backdrop');
-    const atEnd=(down:boolean)=>{const el=document.scrollingElement||document.documentElement;return down?el.scrollTop+el.clientHeight>=el.scrollHeight-2:el.scrollTop<=1};
-    const wheel=(event:WheelEvent)=>{
-      if(modal()||event.shiftKey||Math.abs(event.deltaY)<=Math.abs(event.deltaX)||Math.abs(event.deltaY)<8)return;
-      const down=event.deltaY>0,s=live.current;
-      if(!atEnd(down)||(down?s.at>=s.count-1:s.at<=0))return;
-      event.preventDefault();
-      if(s.lock)return;
-      s.lock=true;pull(down?1:-1);setTimeout(()=>{s.lock=false},420);
-    };
-    const key=(event:KeyboardEvent)=>{
-      if(modal()||(event.target as HTMLElement).closest('input,select,textarea,[contenteditable]'))return;
-      if(event.key==='ArrowDown'||event.key==='PageDown'){event.preventDefault();pull(1)}
-      else if(event.key==='ArrowUp'||event.key==='PageUp'){event.preventDefault();pull(-1)}
-    };
-    const touchStart=(event:TouchEvent)=>{live.current.touch=modal()?null:event.touches[0].clientY};
-    const touchEnd=(event:TouchEvent)=>{const from=live.current.touch;live.current.touch=null;if(from==null)return;const dy=event.changedTouches[0].clientY-from;if(Math.abs(dy)>70&&atEnd(dy<0))pull(dy<0?1:-1)};
-    addEventListener('wheel',wheel,{passive:false});addEventListener('keydown',key);addEventListener('touchstart',touchStart,{passive:true});addEventListener('touchend',touchEnd,{passive:true});
-    return()=>{removeEventListener('wheel',wheel);removeEventListener('keydown',key);removeEventListener('touchstart',touchStart);removeEventListener('touchend',touchEnd)};
-  },[]);
   const classes=[...new Set(decks.map(d=>d.className).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   const at=Math.max(0,Math.min(ordered.length-1,focus)),deck=ordered[at]; // the presentation in front; its slides are on the tray
-  const below=ordered.slice(at+1,at+4); // the next few wait under it, peeking up from the bottom of the screen
   const items:ReelItem[]=deck?deck.slides.map((slide,i)=>({id:deck.id+':'+i,slide,label:`Slide ${i+1}${slide.title?': '+slide.title.replace(/\n/g,' ').slice(0,60):''}`})):[];
-  live.current.at=at;live.current.count=ordered.length;
   const exampleMarker=viewer?.sampleMarkers?.find(marker=>marker.id===markerId);
   const markerItems=(deck:Presentation)=>deck.lastSession ? deck.lastSession.questions : (deck.sampleMarkers||[]).map(m=>({...m,replies:m.response?[m.response]:[]}));
   const markers=markerDeck?markerItems(markerDeck).map((m,i)=>({...m,sequence:i})).sort((a,b)=>Number(!!a.resolved)-Number(!!b.resolved)||a.slide-b.slide||a.sequence-b.sequence):[];
@@ -214,8 +188,7 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
     </div>
     {error&&<p role="alert">{error}</p>}
     {loading?<p>Loading presentations…</p>:!deck?<p className="library-empty reel-empty">{decks.length?'No presentations match.':'Nothing here yet. Import the slides you already teach from, or start a new presentation.'}</p>:<>
-      {at>0&&<button className="deck-above" onClick={()=>pull(-1)} title="Back to the presentation above"><span aria-hidden="true">↑</span> {ordered[at-1].title}</button>}
-      <div key={deck.id} className={'deck-stage '+(pulled>0?'from-below':pulled<0?'from-above':'')} style={{'--cc':classColor(deck.className)} as any}>
+      <div key={deck.id} className={'deck-stage'+(arrived?' from-below':'')} style={{'--cc':classColor(deck.className)} as any}>
         <Reel items={items} focus={slideAt} onFocus={setSlideAt} onOpen={index=>open(deck,index)} renderVisual={renderVisual} color={classColor(deck.className)} label={deck.title}/>
         <section className="reel-hub" aria-live="polite">
           <p className="reel-meta"><i/>{[deck.className,deck.unit,deck.topic].filter(Boolean).join(' · ')||'No class set'}{isExample(deck)?' · Example':''}</p>
@@ -236,13 +209,13 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
         </section>
         <ReelStrip items={items} focus={slideAt} onFocus={setSlideAt} color={classColor(deck.className)}/>
       </div>
-      {below.length>0&&<div className="deck-below" role="group" aria-label="Your other presentations. Scroll down to pull the next one up.">
-        {below.map((other,n)=><button key={other.id} className="deck-peek" style={{'--n':n,'--cc':classColor(other.className)} as any} tabIndex={n?-1:0} onClick={()=>pull(n+1)} aria-label={'Pull up: '+other.title}>
-          <span className="deck-peek-thumb">{other.slides[0]&&<SlideThumb slide={other.slides[0]} renderVisual={renderVisual}/>}</span>
-          <span className="deck-peek-text"><b>{other.title}</b><small>{[other.className,other.slides.length+' slide'+(other.slides.length===1?'':'s')].filter(Boolean).join(' · ')}{other.lastSession?.open?` · ${other.lastSession.open} open`:''}</small></span>
-          {n===0&&<span className="deck-peek-hint">{ordered.length-at-1>1?`${ordered.length-at-1} more below`:'1 more below'} <i aria-hidden="true">↓</i></span>}
-        </button>)}
-      </div>}
+      {ordered.length>1&&<section className="deck-shelf" aria-labelledby="shelfTitle">
+        <header><h2 id="shelfTitle">All presentations</h2><span>{ordered.length}</span><small>Pick one to bring it up front · double-click to open</small></header>
+        <ul>{ordered.map(other=><li key={other.id}><button className={'shelf-card'+(other.id===deck.id?' current':'')} style={{'--cc':classColor(other.className)} as any} aria-current={other.id===deck.id?'true':undefined} onClick={()=>bringUp(other.id)} onDoubleClick={()=>open(other)} title={other.id===deck.id?'In front now · double-click to open':'Bring up front · double-click to open'}>
+          <span className="shelf-thumb">{other.slides[0]&&<SlideThumb slide={other.slides[0]} renderVisual={renderVisual}/>}{!!other.lastSession?.open&&<em>{other.lastSession.open} open</em>}</span>
+          <span className="shelf-text"><b>{other.title}</b><small><i/>{other.className||'No class'}</small><small>{other.slides.length+' slide'+(other.slides.length===1?'':'s')} · {ago(Math.max(other.opened||0,other.updated||0))}</small></span>
+        </button></li>)}</ul>
+      </section>}
     </>}
     {examples.length>0&&decks.length>examples.length&&<p className="library-examples">The {examples.length} example{examples.length===1?'':'s'} can go once you have your own. <button disabled={busy} onClick={()=>update(async()=>{for(const deck of examples)await deletePresentation(deck.id)})}>Remove examples</button></p>}
 
