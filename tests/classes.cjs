@@ -20,8 +20,8 @@ const ok = (c, m) => { console.log((c ? "ok   " : "FAIL ") + m); if (!c) errs.pu
   const roomFns = { room_create: "create", room_get: "get", room_screenshot: "shot", room_act: "act" };
   fake.more = (name, body, uid) => roomFns[name] ? rooms[roomFns[name]](body) : classes.rpc(name, body, uid);
   // pings travel over the faked Realtime socket, only to the class's members (row level security on class_pings)
-  classes.onPing = (type, row) => fake.push("class_pings", type, row, type === "DELETE" ? row : {});
-  fake.canSee = (uid, table, row) => table === "class_pings" && classes.member(uid, row.class_id);
+  classes.onPing = (type, row, table = "class_pings") => fake.push(table, type, row, type === "DELETE" ? row : {});
+  fake.canSee = (uid, table, row) => (table === "class_pings" || table === "class_quizzes") && classes.member(uid, row.class_id);
   const myClassesCalls = () => fake.calls.filter(c => c.endsWith("/rpc/my_classes")).length;
 
   const open = async (role, uid, width = 1300) => {
@@ -132,6 +132,43 @@ const ok = (c, m) => { console.log((c ? "ok   " : "FAIL ") + m); if (!c) errs.pu
   await s.goto(BASE + "/#classes"); await s.waitForSelector(".binder"); await s.goto(BASE + "/"); await s.waitForSelector("#dial"); await s.waitForTimeout(2000);
   ok(!(await s.$("#liveNotice")), "a notice once acted on doesn't come back for the same lesson");
   await s.goto(BASE + "/#classes"); await s.waitForSelector(".binder");
+
+  // ---- a pop quiz: the teacher releases it, the student is pinged, takes it in recall, the teacher sees the result
+  await s.goto(BASE + "/"); await s.waitForSelector("#dial");
+  for (let i = 0; i < 40 && !fake.listening("class_quizzes"); i++) await s.waitForTimeout(150);
+  await t.goto(BASE + "/classroom.html?view=classes"); await t.waitForSelector(".class-detail");
+  await t.click('.class-tabs [role="tab"]:has-text("Pop quizzes")'); await t.waitForSelector(".quiz-panel");
+  await t.click('.quiz-panel button:has-text("New pop quiz")'); await t.waitForSelector(".quiz-modal");
+  await t.fill('.quiz-modal input[placeholder^="e.g."]', "Krebs check");
+  await t.fill('.quiz-qs li:nth-child(1) textarea:nth-child(1)', "What does citrate come from?");
+  await t.fill('.quiz-qs li:nth-child(1) textarea:nth-child(2)', "Acetyl-CoA joining oxaloacetate");
+  await t.fill('.quiz-qs li:nth-child(2) textarea:nth-child(1)', "Where does the Krebs cycle happen?");
+  await t.fill('.quiz-qs li:nth-child(2) textarea:nth-child(2)', "The mitochondrial matrix");
+  ok(await t.isChecked(".quiz-check input"), "a new pop quiz is required unless the teacher says otherwise");
+  await t.click('.quiz-modal button.primary'); await t.waitForSelector('.quiz-card:has-text("Krebs check")');
+  ok(/0 of 1 done/.test(await t.textContent(".quiz-card")) && classes.quizzes.length === 1 && classes.quizzes[0].questions.length === 2, "releasing it lists it for the teacher, none done yet");
+  await s.waitForSelector("#quizNotice", { timeout: 5000 });
+  ok(/Krebs check/.test(await s.textContent("#quizNotice")) && /required/.test(await s.textContent("#quizNotice")), "the student is pinged at once: a card says a required pop quiz arrived");
+  await s.waitForSelector('#recallSlip[data-state="quiz"]', { timeout: 4000 });
+  ok(/Quiz/.test(await s.textContent("#recallSlip")) && await s.isEnabled("#recallSlip"), "and the recall slip leads with it");
+  await s.click("#qnGo"); await s.waitForSelector("#recallSheet .quizcard");
+  ok(/Pop quiz/.test(await s.textContent("#recallSheet .rskick")) && /citrate/.test(await s.textContent(".rq")), "Take it opens the quiz in the recall sheet");
+  await s.fill("#rAns", "acetyl-CoA and oxaloacetate"); await s.click("#reveal"); await s.waitForSelector(".racts .got");
+  ok(/Acetyl-CoA/.test(await s.textContent(".ra")), "showing the answer shows the teacher's");
+  await s.click(".racts .got"); await s.waitForSelector(".quizcard:not(.back) #rAns");
+  await s.fill("#rAns", "cytoplasm"); await s.click("#reveal"); await s.waitForSelector(".racts .again"); await s.click(".racts .again");
+  await s.waitForSelector(".quizdone");
+  ok(/1 \/ 2/.test(await s.textContent(".quizdone .donebig")) && /Sent to Ms Rivera/.test(await s.textContent(".quizdone")), "at the end it's scored from their own marks and sent");
+  const res = classes.results[0];
+  ok(res && res.score === 1 && res.total === 2 && res.answers[1].said === "cytoplasm", "the server has one result with what they wrote");
+  await s.click("#doneBtn"); await s.waitForSelector("#recallSheet", { state: "detached" });
+  ok(await s.$eval("#recallSlip", e => e.dataset.state !== "quiz"), "a quiz taken stops leading the slip");
+  await t.reload(); await t.click('.class-tabs [role="tab"]:has-text("Pop quizzes")'); await t.waitForSelector('.quiz-card:has-text("Krebs check")');
+  ok(/1 of 1 done/.test(await t.textContent(".quiz-card")) && /50%/.test(await t.textContent(".quiz-card .quiz-avg")), "the teacher sees it done, with the average");
+  await t.click(".quiz-row"); await t.waitForSelector(".quiz-results table");
+  ok(/Priya/.test(await t.textContent(".quiz-results")) && /1 \/ 2/.test(await t.textContent(".quiz-results")) && /cytoplasm/.test(await t.textContent(".quiz-said")), "and each student's score and what they said");
+  await s.goto(BASE + "/#classes"); await s.waitForSelector(".bquiz");
+  ok(/Krebs check/.test(await s.textContent(".bquiz")) && /1 \/ 2/.test(await s.textContent(".bquiz")), "the class's page in the binder lists it, with the score");
 
   // ---- leaving ends the teacher's view
   await s.click("#bLeave"); await s.click("#bLeaveYes");

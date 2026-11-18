@@ -13,6 +13,7 @@ import { openCram } from "./cram";
 import { onTheme } from "../theme";
 import { closeShelf, openShelf } from "./shelf";
 import { calendarChip, closeCalendar, wireCalendar } from "./calendar";
+import { onQuizChange, pendingQuizzes, sendQuiz } from "./liveNotice";
 import { getRole, groupWord } from "../role";
 import { cleanFolder } from "./folderLook";
 import { inkOn as folderInk, openFolderEditor } from "./folders";
@@ -46,7 +47,9 @@ const ARC_END = 258;
 
 interface Item { b: Band; label: string; ns: Note[]; w: number; loose?: boolean; more?: boolean; custom?: Course; add?: boolean; span: number; ang: number; W: number; x: number; y: number; near: number; tilt: number }
 /** One recall session. `typed` is what the student wrote from memory for the current question; `missed` collects the ones answered "Again". */
-interface Recall { queue: string[]; i: number; revealed: boolean; got: number; done: boolean; k: number; typed: string; missed: string[]; cram: string | null; ai: string | null; checking: boolean; flipped?: boolean; results: boolean[]; spoke?: boolean }
+interface Recall { queue: string[]; i: number; revealed: boolean; got: number; done: boolean; k: number; typed: string; missed: string[]; cram: string | null; ai: string | null; checking: boolean; flipped?: boolean; results: boolean[]; spoke?: boolean; quiz?: QuizRun }
+/** A teacher's pop quiz being taken: its questions, the student's marks and words so far, and how sending went. */
+interface QuizRun { id: string; title: string; className: string; teacher: string; required: boolean; items: { q: string; a: string }[]; answers: { got: boolean; said: string }[]; sent: { score: number; total: number } | null; error: string }
 
 let items: Item[] = [];
 let rot = 0, target = 0, sel = -1, hoverF = -1, hoverNote: string | null = null, dragging = false, lastDrawn: number | null = null, raf = 0;
@@ -376,6 +379,7 @@ function mineHTML(f: Item, i: number) {
 const titleCase = (t: string) => t.toLowerCase().replace(/(^|\s)\S/g, x => x.toUpperCase());
 
 /** `keep` re-renders in place (same rotation). `still` skips the spin-in, for when the dial is morphing back from a note. */
+let quizWanted: string | null = null; // "Take it" on a quiz card while away from home: started once home is drawn
 /** The next dial plays the first-look rise again, as on a fresh launch (switching sides). */
 export const replayIntro = () => { introduced = false; };
 addEventListener("lb-role-switched", replayIntro); // the developer side switch (src/devSwitch.ts)
@@ -391,6 +395,7 @@ export function renderHome(stage: HTMLElement, h: NonNullable<typeof handlers>, 
   if (redrawLater) { clearTimeout(redrawLater); redrawLater = null; }
   handlers = h;
   alive = true;
+  if (quizWanted) { const id = quizWanted; quizWanted = null; setTimeout(() => { if (alive && !startQuiz(id)) toast("That quiz is already done."); }, 450); }
   layout();
   const prevRot = rot, prevTarget = target;
   stage.innerHTML = `<div class="dialwrap"><div class="morning" id="morning"></div>
@@ -842,6 +847,7 @@ function setProg() {
   if (bar) bar.style.setProperty("--p", String(R.done ? 1 : R.i / R.queue.length));
   if (!side) return;
   side.innerHTML = `<h3>${R.done ? "All done" : `${R.queue.length - R.i} to go`}</h3><ol>${R.queue.map((id, i) => {
+    if (R!.quiz) { const st = i < R!.i ? (R!.results[i] ? "got" : "again") : i === R!.i && !R!.done ? "now" : "later"; return `<li data-st="${st}" style="--c:var(--g2)"><i></i><span>Question ${i + 1}</span></li>`; }
     const m = state.markers.get(id), n = m ? note(m.noteId) : undefined;
     const st = i < R!.i ? (R!.results[i] ? "got" : "again") : i === R!.i && !R!.done ? "now" : "later";
     return `<li data-st="${st}" style="--c:${n ? courseColor(n.courseId) : "var(--muted)"}"><i></i><span>${esc(n?.title || "A note")}</span></li>`;
@@ -858,6 +864,7 @@ function showRecall() {
   const el = $("#rsStage");
   if (!el || !R) return;
   el.dataset.key = "";
+  if (R.quiz) return R.done ? showQuizDone() : showQuizCard();
   if (R.done) return showDone();
   const m = state.markers.get(R.queue[R.i]);
   const n = m ? note(m.noteId) : undefined;
@@ -938,7 +945,8 @@ function sayAnswer(a: string, then?: () => void) {
   if (heard) { card?.classList.add("listening"); mic?.setAttribute("aria-pressed", "true"); }
 }
 /** One step of hands-free recall, run once per card side. */
-async function loudTurn(m: Marker, q: string, a: string, cmp: { hit: number; total: number } | null) {
+async function loudTurn(m: Marker | ((good: boolean) => void), q: string, a: string, cmp: { hit: number; total: number } | null) {
+  const mark = (good: boolean) => typeof m === "function" ? m(good) : void grade(m, good);
   if (!R) return;
   const key = `${R.i}:${R.revealed}`;
   if (turn === key) return;
@@ -958,8 +966,8 @@ async function loudTurn(m: Marker, q: string, a: string, cmp: { hit: number; tot
       if (!still()) return;
       const w = t.toLowerCase();
       if (/\b(stop|done|finish|enough|quit)\b/.test(w)) endRecall();
-      else if (/\b(again|no|nope|missed|didn'?t|not|wrong)\b/.test(w)) void grade(m, false);
-      else if (/\b(got|yes|yeah|yep|knew|right|correct|easy|next)\b/.test(w)) void grade(m, true);
+      else if (/\b(again|no|nope|missed|didn'?t|not|wrong)\b/.test(w)) mark(false);
+      else if (/\b(got|yes|yeah|yep|knew|right|correct|easy|next)\b/.test(w)) mark(true);
       else if (/\b(repeat|again please|what)\b/.test(w)) { turn = ""; void loudTurn(m, q, a, cmp); }
       else { turn = ""; void loudTurn(m, q, a, cmp); }
     },
@@ -1005,6 +1013,109 @@ async function grade(m: Marker, good: boolean) {
   }
   showRecall();
 }
+/* ---------- pop quizzes ----------
+   A teacher's pop quiz runs in the same sheet as recall, one question at a time: answer from memory (typed or out
+   loud, with the key-idea beads), show the teacher's answer, mark it Got it or Again. At the end the marks and words
+   go to the teacher once, and the student carries on to their own recall if any is waiting. */
+function startQuiz(id?: string): boolean {
+  const all = pendingQuizzes(), q = id ? all.find(x => x.id === id) : all[0];
+  if (!q || R) return false;
+  closePop();
+  R = { queue: q.questions.map((_, i) => String(i)), i: 0, revealed: false, got: 0, done: false, k: -1, typed: "", missed: [], cram: null, ai: null, checking: false, results: [],
+    quiz: { id: q.id, title: q.title, className: q.className, teacher: q.teacher, required: q.required, items: q.questions, answers: [], sent: null, error: "" } };
+  hidePeek(true);
+  openSheet();
+  showRecall();
+  return true;
+}
+function showQuizCard() {
+  const el = $("#rsStage"), z = R?.quiz;
+  if (!el || !R || !z) return;
+  const { q, a } = z.items[R.i], color = "var(--g2)";
+  setHc(color, el);
+  $("#recallSheet")?.style.setProperty("--hc", color);
+  const cmp = R.revealed && R.typed ? compareAnswer(R.typed, a) : null;
+  const strong = cmp ? cmp.total > 0 && cmp.hit / cmp.total >= 0.6 : true;
+  const flip = R.revealed && !R.flipped;
+  if (R.revealed) R.flipped = true;
+  el.innerHTML = `<div class="rscard quizcard${flip ? " flip" : ""}${R.revealed ? " back" : ""}" style="--c:${color}"><div class="rtop"><span class="pill" style="background:${color}">Pop quiz</span><span class="rcount">${R.i + 1} / ${R.queue.length}</span></div>
+    <div class="rq">${esc(q)}</div><div class="rsrc">${z.teacher ? `from <b>${esc(z.teacher)}</b> · ` : ""}${esc(z.className)}</div>
+    ${R.revealed
+      ? `${R.typed ? `<div class="ryou"><small>${R.spoke ? "You said" : "You wrote"}</small>${esc(R.typed)}</div>` : ""}
+         <div class="ra">${a ? (cmp ? cmp.html : esc(a)) : "<em>No answer given. Mark it the way you think it went.</em>"}</div>
+         ${cmp && cmp.total ? `<div class="rscore ${strong ? "ok" : "low"}"><b>${cmp.hit} of ${cmp.total}</b> key ideas</div>` : ""}
+         <div class="racts"><button class="again">Again<kbd>1</kbd></button><button class="got">Got it<kbd>2</kbd></button></div>`
+      : `<div class="ransrow"><input id="rAns" class="rans" autocomplete="off" autocapitalize="sentences" maxlength="400" placeholder="${canListen() ? "Type it, or say it out loud" : "Type your answer"}" aria-label="Your answer from memory">${canListen() ? `<button class="rmic" id="rMic" aria-pressed="false" aria-label="Say your answer out loud" title="Say it out loud">${MIC}</button>` : ""}</div>
+         ${a ? beadsHTML(a) : ""}
+         <button class="openlink" id="reveal">Show answer</button>`}</div>`;
+  if (R.revealed) {
+    const again = el.querySelector<HTMLButtonElement>(".again")!, got = el.querySelector<HTMLButtonElement>(".got")!;
+    again.onclick = () => void gradeQuiz(false);
+    got.onclick = () => void gradeQuiz(true);
+    (strong ? got : again).focus({ preventScroll: true });
+  } else {
+    const b = $("#reveal")!, inp = $("#rAns") as HTMLInputElement;
+    b.onclick = reveal;
+    inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); reveal(); } };
+    inp.oninput = () => { if (a) fillBeads(inp.value, a); };
+    const mic = $("#rMic");
+    if (mic) mic.onclick = () => (mic.getAttribute("aria-pressed") === "true" ? heard?.stop() : sayAnswer(a));
+    if (!loud()) (matchMedia("(pointer: fine)").matches ? inp : b).focus({ preventScroll: true });
+  }
+  setProg();
+  if (loud()) void loudTurn(good => void gradeQuiz(good), q, a, cmp);
+}
+async function gradeQuiz(good: boolean) {
+  const z = R?.quiz;
+  if (!R || !z || R.done) return;
+  z.answers.push({ got: good, said: R.typed.slice(0, 400) });
+  R.results.push(good);
+  if (good) R.got++;
+  R.i++;
+  R.revealed = false; R.flipped = false; R.spoke = false; R.typed = "";
+  if (R.i >= R.queue.length) {
+    R.done = true;
+    await sendQuizNow();
+    if (!doneToday()) await putMeta({ studyDays: [...state.meta.studyDays, dayKey(Date.now())] }); // a quiz is recall too
+  }
+  showRecall();
+}
+async function sendQuizNow() {
+  const z = R?.quiz;
+  if (!z) return;
+  z.error = "";
+  try { z.sent = await sendQuiz(z.id, z.answers); }
+  catch (e) { z.error = (e as Error).message || "Couldn't send it."; }
+}
+function showQuizDone() {
+  const el = $("#rsStage"), z = R?.quiz;
+  if (!el || !R || !z) return;
+  setHc("var(--g1)", el);
+  const next = pendingQuizzes().find(x => x.id !== z.id), due = queue().length;
+  const score = z.sent ? `${z.sent.score} / ${z.sent.total}` : `${R.got} / ${R.queue.length}`;
+  el.innerHTML = `<div class="rscard done quizdone"><span class="pill" style="background:var(--g2)">Pop quiz done</span><div class="donebig">${score}</div>
+    <div class="rsrc">${z.sent ? `Sent to ${z.teacher ? esc(z.teacher) : "your teacher"}` : `<span class="qerr">Not sent yet: ${esc(z.error)}</span>`}</div>
+    ${z.sent ? "" : `<button class="openlink" id="qRetry">Try sending again</button>`}
+    ${next ? `<button class="openlink" id="qNext">Next quiz: ${esc(next.title)}</button>` : due ? `<button class="openlink" id="qGo">Now your recall · ${due}</button>` : ""}
+    <button class="${next || due ? "linkbtn" : "openlink"}" id="doneBtn">Back to notes</button></div>`;
+  $("#recallSheet")?.style.setProperty("--hc", "var(--g1)");
+  $("#doneBtn")!.onclick = endRecall;
+  const retry = $("#qRetry"); if (retry) retry.onclick = async () => { retry.setAttribute("disabled", ""); await sendQuizNow(); showRecall(); };
+  const nx = $("#qNext"); if (nx && next) nx.onclick = () => { R = null; closeSheet(true); startQuiz(next.id); };
+  const go = $("#qGo"); if (go) go.onclick = () => { R = null; closeSheet(true); startRecall(); };
+  (nx || go || $("#doneBtn"))!.focus({ preventScroll: true });
+  if (loud()) void say(`Quiz done. ${score.replace(" / ", " out of ")}.${z.sent ? " Sent." : ""}`);
+  setProg();
+  renderMorning();
+}
+// a quiz arriving or being sent changes the slip; "Take it" on a quiz card starts that quiz (going home first if needed)
+onQuizChange(() => { if (alive && !R) void renderMorning(); });
+addEventListener("lb-take-quiz", e => {
+  const id = (e as CustomEvent<string>).detail;
+  if (alive && $("#dial")) { if (!startQuiz(id)) toast("That quiz is already done."); }
+  else { quizWanted = id; location.hash = ""; }
+});
+
 function showDone() {
   const el = $("#rsStage");
   if (!el) return;
@@ -1049,19 +1160,23 @@ function renderSlip(due: number, overdue: number) {
     slip.id = "recallSlip"; slip.className = "rslip";
     slip.innerHTML = `<span class="rslip-wave" aria-hidden="true"></span><span class="rslip-n"></span><span class="rslip-l">Recall</span><span class="rslip-bubble" aria-hidden="true"></span>`;
     document.body.appendChild(slip);
-    slip.onclick = () => { if (!R) startRecall(); };
+    slip.onclick = () => { if (!R && !startQuiz()) startRecall(); };
   }
-  const state_ = due ? "due" : doneToday() ? "done" : "none";
+  // a teacher's pop quiz comes first: the slip says so, and required ones keep it lit until they're done
+  const quiz = pendingQuizzes()[0], quizzes = pendingQuizzes().length;
+  const state_ = quiz ? "quiz" : due ? "due" : doneToday() ? "done" : "none";
   slip.dataset.state = state_;
-  slip.disabled = !due;
-  slip.querySelector(".rslip-n")!.textContent = due ? String(due) : "✓";
-  slip.querySelector(".rslip-bubble")!.textContent = overdue ? `${due} to recall · ${overdue} overdue` : `${due} to recall`;
-  slip.setAttribute("aria-label", due ? `Start recall: ${due} marker${due === 1 ? "" : "s"} waiting` : doneToday() ? "Today's recall is done" : "Nothing to recall right now");
-  slip.title = due ? "Start recall" : doneToday() ? "Today's recall is done" : "Nothing due";
+  slip.classList.toggle("required", !!quiz?.required);
+  slip.disabled = !due && !quiz;
+  slip.querySelector(".rslip-n")!.textContent = quiz ? String(quizzes) : due ? String(due) : "✓";
+  slip.querySelector(".rslip-l")!.textContent = quiz ? "Quiz" : "Recall";
+  slip.querySelector(".rslip-bubble")!.textContent = quiz ? `${quiz.required ? "Required" : "Pop"} quiz: ${quiz.title}${quiz.teacher ? ` · ${quiz.teacher}` : ""}${due ? ` · then ${due} to recall` : ""}` : overdue ? `${due} to recall · ${overdue} overdue` : `${due} to recall`;
+  slip.setAttribute("aria-label", quiz ? `Take the pop quiz “${quiz.title}” from ${quiz.className}${quizzes > 1 ? `, and ${quizzes - 1} more` : ""}` : due ? `Start recall: ${due} marker${due === 1 ? "" : "s"} waiting` : doneToday() ? "Today's recall is done" : "Nothing to recall right now");
+  slip.title = quiz ? "Take the pop quiz" : due ? "Start recall" : doneToday() ? "Today's recall is done" : "Nothing due";
   // the first time today: slide out and say so
   let today = "";
   try { today = localStorage.getItem(SLIP_DAY) || ""; } catch { /* storage blocked */ }
-  if (due && !doneToday() && today !== dayKey(Date.now()) && !reducedMotion()) {
+  if ((quiz || due && !doneToday()) && today !== dayKey(Date.now()) && !reducedMotion()) {
     try { localStorage.setItem(SLIP_DAY, dayKey(Date.now())); } catch { /* storage blocked */ }
     slip.classList.add("hello");
     setTimeout(() => slip?.classList.remove("hello"), 5200);
@@ -1080,7 +1195,7 @@ function openSheet() {
   wrap.id = "recallSheet"; wrap.className = "rsback";
   wrap.innerHTML = `<section class="rspanel" role="dialog" aria-modal="true" aria-labelledby="rsTitle">
       <div class="rsbar" id="rsBar" aria-hidden="true"><i></i></div>
-      <header class="rshead"><div><span class="rskick">${R?.cram === "Exit ticket" ? "Exit ticket" : R?.cram ? "Cram" : "Recall"}</span><h2 id="rsTitle">${R?.cram === "Exit ticket" ? "What did today's lesson leave you with?" : "What do you remember?"}</h2></div>
+      <header class="rshead"><div><span class="rskick">${R?.quiz ? `Pop quiz · ${esc(R.quiz.className)}${R.quiz.required ? " · required" : ""}` : R?.cram === "Exit ticket" ? "Exit ticket" : R?.cram ? "Cram" : "Recall"}</span><h2 id="rsTitle">${R?.quiz ? esc(R.quiz.title) : R?.cram === "Exit ticket" ? "What did today's lesson leave you with?" : "What do you remember?"}</h2></div>
         <span class="rsacts">${canListen() ? `<button class="rsloud" id="rsLoud" aria-pressed="${loud()}" title="Out loud: questions read to you, answered by voice, hands-free"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4.500" height="6.500" rx="2"/><rect x="16.500" y="14" width="4.500" height="6.500" rx="2"/></svg><span>Out loud</span></button>` : ""}
         <button class="rsclose" id="rsClose" aria-label="Close recall (Esc)" title="Close (Esc)">×</button></span></header>
       <div class="rsbody"><div class="rsstage" id="rsStage" aria-live="polite"></div><aside class="rsside" id="rsSide" aria-label="Questions"></aside></div>

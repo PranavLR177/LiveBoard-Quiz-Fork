@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import TopBar from './TopBar';
 import { classesBackend, type RosterRow, type StudentWork, type TeacherClass } from './classesApi';
 import { classColor } from './Reel';
+import QuizPanel from './QuizPanel';
 
 /* A teacher's classes: who is in each one and how they are doing. Students join with the class code in LiveBoard
    (Classes, then the code); joining shares the notes and markers in the course they link, read-only, and leaving
@@ -29,6 +30,7 @@ export default function Classes(){
   const [busy,setBusy]=useState(false);
   const [confirmDelete,setConfirmDelete]=useState(false);
   const [copied,setCopied]=useState(false);
+  const [tab,setTab]=useState<'students'|'quizzes'>('students');
 
   async function refresh(keep=sel){
     if(!api)return;
@@ -101,7 +103,8 @@ export default function Classes(){
           <div className="class-code"><small>Join code</small><b>{current.code}</b><button onClick={()=>navigator.clipboard?.writeText(current.code).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),1600)}).catch(()=>{})}>{copied?'Copied':'Copy'}</button></div>
         </div>
         <p className="class-how">Students open <b>Classes</b> in LiveBoard and enter <b>{current.code}</b>. Joining links one of their courses and shares its notes and markers with you, read-only. They can leave at any time.</p>
-        {roster===null?<p className="quiet">Loading students…</p>:!roster.length?<p className="class-none">No students yet. Share the code above.</p>:
+        <div className="class-tabs" role="tablist"><button role="tab" aria-selected={tab==='students'} onClick={()=>setTab('students')}>Students</button><button role="tab" aria-selected={tab==='quizzes'} onClick={()=>setTab('quizzes')}>Pop quizzes</button></div>
+        {tab==='quizzes'?<QuizPanel classId={current.id} students={current.students}/>:roster===null?<p className="quiet">Loading students…</p>:!roster.length?<p className="class-none">No students yet. Share the code above.</p>:
         <div className={'class-body'+(student?' with-student':'')}>
           <table className="roster"><thead><tr><th>Student</th><th>Notes</th><th>Markers</th><th>Mastered</th><th>To review</th><th>Points <small>7d</small></th><th>Last active</th></tr></thead>
           <tbody>{roster.map(r=><tr key={r.userId} className={student?.userId===r.userId?'on':''} onClick={()=>setStudent(r)} tabIndex={0} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setStudent(r)}}} aria-selected={student?.userId===r.userId}>

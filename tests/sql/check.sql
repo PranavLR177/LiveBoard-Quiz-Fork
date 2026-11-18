@@ -277,6 +277,54 @@ set role authenticated;
 \if :unpinged2 \else \echo 'FAIL untelling the class takes the ping back' \quit \endif
 select public.room_for_class(:'troom', :'tsecret'::uuid, :'tcls') is null as retied \gset
 set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
+-- pop quizzes: a teacher releases one, only the class's students see it, each sends one self-graded result
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
+select public.teacher_release_quiz(:'tcls', 'Equilibrium check', '[{"q":"What shifts equilibrium?","a":"Le Chatelier: changes in concentration, pressure, temperature"},{"q":"What is K?","a":"The equilibrium constant"},{"q":"  ","a":"blank questions are dropped"}]', true, now() + interval '1 day') as qid \gset
+select questions = 2 and required and done = 0 and students = 2 as q_listed from public.teacher_quizzes(:'tcls') \gset
+\if :q_listed \else \echo 'FAIL the teacher sees the released quiz with its question count and class size' \quit \endif
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
+\set ON_ERROR_STOP 0
+\echo '(expected) only the teacher of the class can release a quiz to it:'
+select public.teacher_release_quiz(:'tcls', 'Fake', '[{"q":"x","a":"y"}]');
+\set ON_ERROR_STOP 1
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
+select count(*) = 1 and bool_and(jsonb_array_length(questions) = 2 and required and not done and teacher_name = 'Ms Rivera') as a_quiz from public.my_quizzes() \gset
+\if :a_quiz \else \echo 'FAIL a student in the class gets the quiz' \quit \endif
+select count(*) = 1 as a_sees_row from public.class_quizzes \gset
+\if :a_sees_row \else \echo 'FAIL a member can read the quiz row Realtime pushes' \quit \endif
+\set ON_ERROR_STOP 0
+\echo '(expected) a result must answer every question, and can only be sent through submit_quiz:'
+select public.submit_quiz(:'qid', '[{"got":true}]');
+insert into public.quiz_results (quiz_id, user_id, answers, score, total) values (:'qid', '00000000-0000-0000-0000-00000000000a', '[]', 99, 2);
+\set ON_ERROR_STOP 1
+select (public.submit_quiz(:'qid', '[{"got":true,"said":"temperature and concentration"},{"got":false,"said":"no idea"}]'))->>'score' = '1' as scored \gset
+\if :scored \else \echo 'FAIL a submitted quiz is scored from the student''s own marks' \quit \endif
+select (public.submit_quiz(:'qid', '[{"got":true},{"got":true}]'))->>'score' = '1' as first_stands \gset
+\if :first_stands \else \echo 'FAIL the first result sent stands; a retake does not overwrite it' \quit \endif
+select bool_and(done and score = 1) as a_done from public.my_quizzes() \gset
+\if :a_done \else \echo 'FAIL the student sees their quiz as done, with their score' \quit \endif
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000d';
+select count(*) = 0 as d_no_quiz from public.class_quizzes \gset
+\if :d_no_quiz \else \echo 'FAIL someone outside the class cannot read its quizzes' \quit \endif
+\set ON_ERROR_STOP 0
+\echo '(expected) someone outside the class cannot answer its quiz or read its results:'
+select public.submit_quiz(:'qid', '[{"got":true},{"got":true}]');
+select * from public.teacher_quiz_results(:'qid');
+\set ON_ERROR_STOP 1
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
+select done = 1 and avg_pct = 50 as q_counted from public.teacher_quizzes(:'tcls') \gset
+\if :q_counted \else \echo 'FAIL the teacher sees how many finished and the average' \quit \endif
+select count(*) = 2 and bool_or(display_name = 'Ana' and done and score = 1 and answers->1->>'said' = 'no idea') and bool_or(display_name = 'Ben' and not done) as q_results from public.teacher_quiz_results(:'qid') \gset
+\if :q_results \else \echo 'FAIL the teacher sees each student: who finished, their score and what they said' \quit \endif
+select public.teacher_close_quiz(:'qid') is null as q_closed \gset
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
+select count(*) = 0 as b_closed from public.my_quizzes() \gset
+\if :b_closed \else \echo 'FAIL a closed quiz no longer reaches students who have not taken it' \quit \endif
+\set ON_ERROR_STOP 0
+\echo '(expected) a closed quiz takes no more answers:'
+select public.submit_quiz(:'qid', '[{"got":true},{"got":true}]');
+\set ON_ERROR_STOP 1
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
 -- leaving ends the sharing at once
 select public.leave_class(:'tcls') is null as left_class \gset
 set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
