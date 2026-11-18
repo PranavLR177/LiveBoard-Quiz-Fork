@@ -18,6 +18,7 @@ import { onQuizChange, pendingQuizzes, sendQuiz } from "./liveNotice";
 import { getRole, groupWord } from "../role";
 import { cleanFolder } from "./folderLook";
 import { inkOn as folderInk, openFolderEditor } from "./folders";
+import { removeRotunda, renderRotunda } from "./rotunda";
 
 /* The home screen: a morning strip over a spinning dial of notes arranged by when they were last opened.
    Recall plays inside the dial's center while the ring turns to each question's note. */
@@ -419,6 +420,8 @@ export function renderHome(stage: HTMLElement, h: NonNullable<typeof handlers>, 
   $("#hub")!.querySelectorAll<HTMLButtonElement>(".hbtn").forEach(b => b.onclick = () => (b.dataset.act === "blank" ? h.newBlank() : h.importFile()));
   renderMorning();
   renderFollow();
+  // every folder by subject, outside time, from the right edge (rotunda.ts)
+  renderRotunda({ openNote: id => handlers?.openNote(id), newBlank: id => handlers?.newBlank(id), editFolder });
   $("#spinPrev")!.onclick = () => goTo(sel - 1);
   $("#spinNext")!.onclick = () => goTo(sel + 1);
   sel = -1; hoverF = -1; hoverNote = null;
@@ -512,6 +515,7 @@ export function destroyHome() {
   R = null;
   pop = null;
   document.querySelector("#recallSlip")?.remove();
+  removeRotunda();
 }
 
 const RISE = 0.34; // share of a fanned folder's height kept clear above the dial; the rest may rise over the tucked top line
