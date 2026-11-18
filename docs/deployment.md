@@ -54,6 +54,12 @@ Don't give the link to students until each of these is true.
 - [ ] Delete account data with an unsynced edit on one device and a second device offline: the server stays empty after both reconnect, and the second device says its online copy was deleted.
 - [ ] Set `AI_DISABLED=true` and redeploy: markers still write, calculate and recall; AI says it's off. Remove it.
 
+## Status as of November 17, 2026 (main at "so far so good")
+
+Checked here: `npm test` passes end to end (build, API, e2e, regressions, voice parser and voice UI with scripted speech, calendar, safety, sync against a faked Supabase, classroom, classes and pop quizzes, the single-file preview, and the SQL suite plus the upgrade check on Postgres 16). The audit gate passes (nothing high in shipped code, nothing critical anywhere). A sweep of every main screen for all three roles (just me, student, teacher) at phone, iPad, iPad landscape, a 990px window, laptop and 1920px, in light and dark, found no script errors and no page running off the side after one fix (the teacher's top line on phones).
+
+Not yet checked, and worth doing before students rely on it: a real hosted Supabase project (sign-in email, the schema run, Realtime turned on for `class_pings` and `class_quizzes`), the deployed Vercel function with a real Anthropic key and quota, real microphones (voice in Chrome and Safari, and on iPad), real iPads and phones (touch, the on-screen keyboard over recall and the calendar), and two real devices syncing.
+
 ## Limits to start with
 
 - `AI_DAILY_LIMIT=40`, `AI_PER_MINUTE_LIMIT=6`, `AI_GLOBAL_DAILY_LIMIT` = students × 40.
