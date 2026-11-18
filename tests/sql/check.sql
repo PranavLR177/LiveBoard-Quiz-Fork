@@ -325,6 +325,29 @@ select count(*) = 0 as b_closed from public.my_quizzes() \gset
 select public.submit_quiz(:'qid', '[{"got":true},{"got":true}]');
 \set ON_ERROR_STOP 1
 set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
+-- question kinds: multiple choice and true/false are marked by the server from what was picked, pictures are checked
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
+select public.teacher_release_quiz(:'tcls', 'Kinds', '[{"type":"choice","q":"Which raises K for an exothermic reaction?","options":["Heating","Cooling"," ",""],"correct":1,"a":"Cooling shifts it toward products"},{"type":"tf","q":"A catalyst changes K","correct":1},{"type":"short","q":"Name Le Chatelier","a":"Henry"},{"type":"short","q":"","img":"data:image/png;base64,iVBORw0KGgo="}]', false, null, true) as qid2 \gset
+select bool_and(shuffle) and bool_or(title = 'Kinds' and questions = 4) as kinds_listed from public.teacher_quizzes(:'tcls') where title = 'Kinds' \gset
+\if :kinds_listed \else \echo 'FAIL a quiz keeps its kinds of question, a picture-only question, and shuffling' \quit \endif
+\set ON_ERROR_STOP 0
+\echo '(expected) a choice needs 2 or more options and a right one; a picture must be a small image:'
+select public.teacher_release_quiz(:'tcls', 'Bad', '[{"type":"choice","q":"x","options":["only one"],"correct":0}]');
+select public.teacher_release_quiz(:'tcls', 'Bad', '[{"type":"choice","q":"x","options":["a","b"],"correct":5}]');
+select public.teacher_release_quiz(:'tcls', 'Bad', '[{"type":"tf","q":"x"}]');
+select public.teacher_release_quiz(:'tcls', 'Bad', '[{"q":"x","img":"javascript:alert(1)"}]');
+\set ON_ERROR_STOP 1
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
+select bool_and(shuffle and jsonb_array_length(questions->0->'options') = 2 and questions->1->'options' = '["True","False"]'::jsonb and questions->3 ? 'img') as b_kinds from public.my_quizzes() where id = :'qid2' \gset
+\if :b_kinds \else \echo 'FAIL the student gets the cleaned options, True/False, the picture and the shuffle setting' \quit \endif
+-- claiming "got it" on wrong picks doesn't count; a short answer is the student's own mark
+select (public.submit_quiz(:'qid2', '[{"got":true,"pick":0},{"got":false,"pick":1},{"got":true,"said":"Henri"},{"got":false}]'))->>'score' = '2' as server_marked \gset
+\if :server_marked \else \echo 'FAIL multiple choice and true/false are marked by the server from the pick' \quit \endif
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
+select bool_or(display_name = 'Ben' and score = 2 and (answers->0->>'pick')::int = 0 and not (answers->0->>'got')::boolean) as picks_kept from public.teacher_quiz_results(:'qid2') \gset
+\if :picks_kept \else \echo 'FAIL the teacher sees what each student picked' \quit \endif
+select public.teacher_close_quiz(:'qid2', true) is null as kinds_deleted \gset
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
 -- leaving ends the sharing at once
 select public.leave_class(:'tcls') is null as left_class \gset
 set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';

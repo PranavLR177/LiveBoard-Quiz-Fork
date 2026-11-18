@@ -492,7 +492,8 @@ export function subscribeClassPings(cb: (p: ClassPing) => void): () => void {
   }).subscribe();
   return () => { void client.removeChannel(ch); };
 }
-export type Quiz = { id: string; classId: string; className: string; teacher: string; title: string; questions: { q: string; a: string }[]; required: boolean; dueAt: number | null; createdAt: number; done: boolean; score: number | null; total: number | null };
+export type QuizItem = { type: "short" | "choice" | "tf"; q: string; a: string; options?: string[]; correct?: number; img?: string };
+export type Quiz = { id: string; classId: string; className: string; teacher: string; title: string; questions: QuizItem[]; required: boolean; dueAt: number | null; createdAt: number; done: boolean; score: number | null; total: number | null; shuffle: boolean };
 /** Pop quizzes released to this account's classes: open ones, and ones already taken (with the score). */
 export async function myQuizzes(): Promise<Quiz[] | null> {
   if (!sb || !session) return null;
@@ -500,13 +501,18 @@ export async function myQuizzes(): Promise<Quiz[] | null> {
   if (error) { console.warn(error); return null; }
   return ((data || []) as Record<string, unknown>[]).map(r => ({
     id: String(r.id), classId: String(r.class_id), className: String(r.class_name || ""), teacher: String(r.teacher_name || ""), title: String(r.title || "Pop quiz"),
-    questions: Array.isArray(r.questions) ? (r.questions as { q: unknown; a: unknown }[]).map(x => ({ q: String(x?.q || ""), a: String(x?.a || "") })).filter(x => x.q) : [],
+    questions: Array.isArray(r.questions) ? (r.questions as Record<string, unknown>[]).map((x): QuizItem => {
+      const type = x?.type === "choice" || x?.type === "tf" ? x.type : "short";
+      const options = Array.isArray(x?.options) ? (x.options as unknown[]).map(String) : undefined;
+      const img = typeof x?.img === "string" && /^data:image\/(png|jpeg|webp|gif);base64,/.test(x.img) ? x.img : undefined;
+      return { type, q: String(x?.q || ""), a: String(x?.a || ""), options: type === "tf" ? ["True", "False"] : options, correct: typeof x?.correct === "number" ? x.correct : undefined, img };
+    }).filter(x => (x.q || x.img) && (x.type === "short" || (x.options && x.options.length >= 2 && typeof x.correct === "number"))) : [],
     required: !!r.required, dueAt: r.due_at ? Date.parse(String(r.due_at)) : null, createdAt: Date.parse(String(r.created_at)) || Date.now(), done: !!r.done,
-    score: r.score == null ? null : Number(r.score), total: r.total == null ? null : Number(r.total)
+    score: r.score == null ? null : Number(r.score), total: r.total == null ? null : Number(r.total), shuffle: !!r.shuffle
   }));
 }
 /** Sends a quiz result: for each question, whether the student marked it Got it, and what they wrote or said. */
-export async function submitQuiz(quizId: string, answers: { got: boolean; said: string }[]): Promise<{ score: number; total: number }> {
+export async function submitQuiz(quizId: string, answers: { got: boolean; said: string; pick?: number }[]): Promise<{ score: number; total: number }> {
   if (!sb || !session) throw new Error("Sign in to send your quiz.");
   const { data, error } = await sb.rpc("submit_quiz", { p_quiz: quizId, p_answers: answers });
   if (error) throw new Error(error.message || "Couldn't send your quiz.");

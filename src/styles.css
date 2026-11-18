@@ -2031,3 +2031,25 @@ body:has(.rsback) .quiznotice { display: none; }
   :root[data-role="teacher"] .top #searchBtn { display: none; }
   .top { max-width: 100vw; }
 }
+
+/* pop quiz cards: pictures, options, true or false */
+.qimg { margin: 0; width: 100%; display: flex; justify-content: center; }
+.qimg img { max-width: 100%; max-height: min(34vh, 320px); border-radius: 14px; border: 1px solid var(--line); background: #fff; object-fit: contain; }
+.qopts { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.qopts.tf { grid-template-columns: 1fr 1fr; }
+.qopt { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 10px 14px; text-align: left; border: 1.5px solid var(--line); border-radius: 16px; background: var(--paper); color: var(--ink); font: 600 15.5px/1.3 var(--display); cursor: pointer; transition: transform .15s, border-color .2s, background .2s; }
+.qopts.tf .qopt { justify-content: center; font-size: 18px; min-height: 70px; }
+.qopt kbd { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 9px; background: color-mix(in srgb, var(--hc) 14%, var(--paper)); color: var(--hc); font: 700 13px var(--mono); border: 0; }
+.qopt span { flex: 1; }
+.qopt i { font-style: normal; font-weight: 800; }
+.qopt.right { border-color: var(--good); background: color-mix(in srgb, var(--good) 14%, var(--paper)); animation: pop .3s ease-out; }
+.qopt.wrong { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, var(--paper)); animation: qshake .35s; }
+.qopt.dim { opacity: .45; }
+.qopt:disabled { cursor: default; }
+@keyframes qshake { 25% { transform: translateX(-5px); } 50% { transform: translateX(4px); } 75% { transform: translateX(-2px); } }
+.qverdict { font: 700 15px var(--display); }
+.qverdict.ok { color: var(--good); } .qverdict.low { color: var(--bad); }
+@media (hover: hover) { .qopt:not(:disabled):hover { border-color: var(--hc); transform: translateY(-2px); } }
+@media (max-width: 560px) { .qopts { grid-template-columns: 1fr; } .qopts.tf { grid-template-columns: 1fr 1fr; } }
+@media (prefers-reduced-motion: reduce) { .qopt.right, .qopt.wrong { animation: none; } }
+.qopts.tf .qopt span { flex: none; }
