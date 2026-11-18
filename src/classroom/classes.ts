@@ -31,9 +31,9 @@ export function supabaseClasses(): ClassesBackend | null {
     async tieRoom(room, secret, classId) { await run("room_for_class", { p_room: room, p_secret: secret, p_class: classId }); },
     async quizzes(classId) {
       const rows = await run<Record<string, unknown>[]>("teacher_quizzes", { p_class: classId });
-      return rows.map((r): TeacherQuiz => ({ id: String(r.id), title: String(r.title), questions: Number(r.questions), required: !!r.required, dueAt: (r.due_at as string) || null, closed: !!r.closed, createdAt: String(r.created_at), done: Number(r.done), students: Number(r.students), avgPct: r.avg_pct == null ? null : Number(r.avg_pct) }));
+      return rows.map((r): TeacherQuiz => ({ id: String(r.id), title: String(r.title), questions: Number(r.questions), required: !!r.required, dueAt: (r.due_at as string) || null, closed: !!r.closed, createdAt: String(r.created_at), done: Number(r.done), students: Number(r.students), avgPct: r.avg_pct == null ? null : Number(r.avg_pct), shuffle: !!r.shuffle, items: Array.isArray(r.items) ? r.items as TeacherQuiz["items"] : [] }));
     },
-    async releaseQuiz(classId, title, questions, required, dueAt) { return await run<string>("teacher_release_quiz", { p_class: classId, p_title: title, p_questions: questions, p_required: required, p_due: dueAt }); },
+    async releaseQuiz(classId, title, questions, required, dueAt, shuffle = false) { return await run<string>("teacher_release_quiz", { p_class: classId, p_title: title, p_questions: questions, p_required: required, p_due: dueAt, p_shuffle: shuffle }); },
     async quizResults(quizId) {
       const rows = await run<Record<string, unknown>[]>("teacher_quiz_results", { p_quiz: quizId });
       return rows.map((r): QuizResult => ({ userId: String(r.user_id), name: String(r.display_name), done: !!r.done, score: r.score == null ? null : Number(r.score), total: r.total == null ? null : Number(r.total), finishedAt: (r.finished_at as string) || null, answers: Array.isArray(r.answers) ? r.answers as QuizResult["answers"] : [] }));

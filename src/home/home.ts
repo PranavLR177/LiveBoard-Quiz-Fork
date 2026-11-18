@@ -3,6 +3,7 @@ import { leaderboard, currentUser } from "../sync";
 import type { Course, Marker, Note } from "../types";
 import { $, agoLong, DAY, dayKey, esc, H, reducedMotion, toast, wrapDeg } from "../util";
 import { canListen, hush, listen, MIC, say, type Listening } from "../voice";
+import type { QuizItem } from "../sync";
 import { setPendingOpen, TYPE_INFO } from "../editor/markerBox";
 import { aiHealth, askMarker } from "../ai";
 import { compareAnswer, fingerprint, forecast, gradeMarker, isDue, recallable, recallText, studiedOn, upcomingExams } from "../study";
@@ -49,7 +50,11 @@ interface Item { b: Band; label: string; ns: Note[]; w: number; loose?: boolean;
 /** One recall session. `typed` is what the student wrote from memory for the current question; `missed` collects the ones answered "Again". */
 interface Recall { queue: string[]; i: number; revealed: boolean; got: number; done: boolean; k: number; typed: string; missed: string[]; cram: string | null; ai: string | null; checking: boolean; flipped?: boolean; results: boolean[]; spoke?: boolean; quiz?: QuizRun }
 /** A teacher's pop quiz being taken: its questions, the student's marks and words so far, and how sending went. */
-interface QuizRun { id: string; title: string; className: string; teacher: string; required: boolean; items: { q: string; a: string }[]; answers: { got: boolean; said: string }[]; sent: { score: number; total: number } | null; error: string }
+interface QuizRun { id: string; title: string; className: string; teacher: string; required: boolean;
+  /** In the order this student sees them: each with its place in the teacher's list (orig) and the order of its options (view). */
+  items: (QuizItem & { orig: number; view: number[] })[];
+  /** In the teacher's order, as sent. */
+  answers: { got: boolean; said: string; pick?: number }[]; picked: number | null; sent: { score: number; total: number } | null; error: string }
 
 let items: Item[] = [];
 let rot = 0, target = 0, sel = -1, hoverF = -1, hoverNote: string | null = null, dragging = false, lastDrawn: number | null = null, raf = 0;
@@ -1021,26 +1026,39 @@ function startQuiz(id?: string): boolean {
   const all = pendingQuizzes(), q = id ? all.find(x => x.id === id) : all[0];
   if (!q || R) return false;
   closePop();
-  R = { queue: q.questions.map((_, i) => String(i)), i: 0, revealed: false, got: 0, done: false, k: -1, typed: "", missed: [], cram: null, ai: null, checking: false, results: [],
-    quiz: { id: q.id, title: q.title, className: q.className, teacher: q.teacher, required: q.required, items: q.questions, answers: [], sent: null, error: "" } };
+  // a shuffled quiz gives each student its own order of questions and options; answers go back in the quiz's order
+  const mix = <T,>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const order = q.shuffle ? mix(q.questions.map((_, i) => i)) : q.questions.map((_, i) => i);
+  const items = order.map(k => { const it = q.questions[k], opts = (it.options || []).map((_, i) => i); return { ...it, orig: k, view: it.type === "choice" && q.shuffle ? mix(opts) : opts }; });
+  R = { queue: items.map((_, i) => String(i)), i: 0, revealed: false, got: 0, done: false, k: -1, typed: "", missed: [], cram: null, ai: null, checking: false, results: [],
+    quiz: { id: q.id, title: q.title, className: q.className, teacher: q.teacher, required: q.required, items, answers: q.questions.map(() => ({ got: false, said: "" })), picked: null, sent: null, error: "" } };
   hidePeek(true);
   openSheet();
   showRecall();
   return true;
 }
+const LETTERS = "ABCDEF";
 function showQuizCard() {
   const el = $("#rsStage"), z = R?.quiz;
   if (!el || !R || !z) return;
-  const { q, a } = z.items[R.i], color = "var(--g2)";
+  const it = z.items[R.i], { q, a } = it, color = "var(--g2)", marked = it.type !== "short";
   setHc(color, el);
   $("#recallSheet")?.style.setProperty("--hc", color);
-  const cmp = R.revealed && R.typed ? compareAnswer(R.typed, a) : null;
+  const cmp = !marked && R.revealed && R.typed ? compareAnswer(R.typed, a) : null;
   const strong = cmp ? cmp.total > 0 && cmp.hit / cmp.total >= 0.6 : true;
   const flip = R.revealed && !R.flipped;
   if (R.revealed) R.flipped = true;
-  el.innerHTML = `<div class="rscard quizcard${flip ? " flip" : ""}${R.revealed ? " back" : ""}" style="--c:${color}"><div class="rtop"><span class="pill" style="background:${color}">Pop quiz</span><span class="rcount">${R.i + 1} / ${R.queue.length}</span></div>
-    <div class="rq">${esc(q)}</div><div class="rsrc">${z.teacher ? `from <b>${esc(z.teacher)}</b> · ` : ""}${esc(z.className)}</div>
-    ${R.revealed
+  const right = it.correct ?? -1, picked = z.picked;
+  const img = it.img ? `<figure class="qimg"><img src="${esc(it.img)}" alt="Picture for this question" loading="lazy"></figure>` : "";
+  const choices = marked ? `<div class="qopts ${it.type}" role="group" aria-label="Choose an answer">${it.view.map((k, pos) => {
+      const state_ = R!.revealed ? (k === right ? "right" : k === picked ? "wrong" : "dim") : "";
+      return `<button class="qopt ${state_}" data-pick="${k}" ${R!.revealed ? "disabled" : ""} aria-label="${it.type === "tf" ? "" : LETTERS[pos] + ": "}${esc(it.options![k])}${state_ === "right" ? " (right answer)" : state_ === "wrong" ? " (your answer)" : ""}">${it.type === "tf" ? "" : `<kbd>${LETTERS[pos]}</kbd>`}<span>${esc(it.options![k])}</span>${state_ === "right" ? "<i>✓</i>" : state_ === "wrong" ? "<i>✕</i>" : ""}</button>`;
+    }).join("")}</div>` : "";
+  el.innerHTML = `<div class="rscard quizcard${flip && !marked ? " flip" : ""}${R.revealed ? " back" : ""}" style="--c:${color}"><div class="rtop"><span class="pill" style="background:${color}">${it.type === "choice" ? "Multiple choice" : it.type === "tf" ? "True or false" : "Pop quiz"}</span><span class="rcount">${R.i + 1} / ${R.queue.length}</span></div>
+    ${img}${q ? `<div class="rq">${esc(q)}</div>` : ""}<div class="rsrc">${z.teacher ? `from <b>${esc(z.teacher)}</b> · ` : ""}${esc(z.className)}</div>
+    ${marked
+      ? `${choices}${R.revealed ? `<div class="qverdict ${picked === right ? "ok" : "low"}">${picked === right ? "Right" : `Not quite: it's ${it.type === "tf" ? "" : LETTERS[it.view.indexOf(right)] + ", "}${esc(it.options![right])}`}</div>${a ? `<div class="ra">${esc(a)}</div>` : ""}<div class="racts"><button class="got" id="qNextQ">${R.i + 1 < R.queue.length ? "Next" : "Finish"}<kbd>↵</kbd></button></div>` : ""}`
+      : R.revealed
       ? `${R.typed ? `<div class="ryou"><small>${R.spoke ? "You said" : "You wrote"}</small>${esc(R.typed)}</div>` : ""}
          <div class="ra">${a ? (cmp ? cmp.html : esc(a)) : "<em>No answer given. Mark it the way you think it went.</em>"}</div>
          ${cmp && cmp.total ? `<div class="rscore ${strong ? "ok" : "low"}"><b>${cmp.hit} of ${cmp.total}</b> key ideas</div>` : ""}
@@ -1048,7 +1066,12 @@ function showQuizCard() {
       : `<div class="ransrow"><input id="rAns" class="rans" autocomplete="off" autocapitalize="sentences" maxlength="400" placeholder="${canListen() ? "Type it, or say it out loud" : "Type your answer"}" aria-label="Your answer from memory">${canListen() ? `<button class="rmic" id="rMic" aria-pressed="false" aria-label="Say your answer out loud" title="Say it out loud">${MIC}</button>` : ""}</div>
          ${a ? beadsHTML(a) : ""}
          <button class="openlink" id="reveal">Show answer</button>`}</div>`;
-  if (R.revealed) {
+  if (marked) {
+    el.querySelectorAll<HTMLButtonElement>("[data-pick]").forEach(b => b.onclick = () => pickQuiz(+b.dataset.pick!));
+    const nx = el.querySelector<HTMLButtonElement>("#qNextQ");
+    if (nx) { nx.onclick = () => void gradeQuiz(picked === right); nx.focus({ preventScroll: true }); }
+    else el.querySelector<HTMLButtonElement>(".qopt")?.focus({ preventScroll: true });
+  } else if (R.revealed) {
     const again = el.querySelector<HTMLButtonElement>(".again")!, got = el.querySelector<HTMLButtonElement>(".got")!;
     again.onclick = () => void gradeQuiz(false);
     got.onclick = () => void gradeQuiz(true);
@@ -1063,12 +1086,57 @@ function showQuizCard() {
     if (!loud()) (matchMedia("(pointer: fine)").matches ? inp : b).focus({ preventScroll: true });
   }
   setProg();
-  if (loud()) void loudTurn(good => void gradeQuiz(good), q, a, cmp);
+  if (loud()) void (marked ? loudPick(it) : loudTurn(good => void gradeQuiz(good), q, a, cmp));
+}
+/** A choice picked (by its index in the teacher's list): the card shows right or wrong at once. */
+function pickQuiz(k: number) {
+  const z = R?.quiz;
+  if (!R || !z || R.revealed) return;
+  z.picked = k; R.revealed = true; R.typed = z.items[R.i].options?.[k] || "";
+  heard?.cancel(); heard = null;
+  showRecall();
+}
+/** Hands-free multiple choice: the question and its options are read out; say a letter, "true", "false" or the option. */
+async function loudPick(it: { type: string; q: string; a: string; options?: string[]; correct?: number; view: number[] }) {
+  if (!R) return;
+  const key = `${R.i}:${R.revealed}`;
+  if (turn === key) return;
+  turn = key;
+  const still = () => R && turn === key && $("#recallSheet");
+  const z = R.quiz!;
+  if (R.revealed) {
+    const right = it.correct ?? -1;
+    await say(`${z.picked === right ? "Right." : `Not quite. It's ${it.options![right]}.`} ${it.a.slice(0, 300)}`);
+    if (still()) void gradeQuiz(z.picked === right);
+    return;
+  }
+  await say(`${it.q}. ${it.type === "tf" ? "True or false?" : it.view.map((k, pos) => `${LETTERS[pos]}: ${it.options![k]}.`).join(" ")}`);
+  if (!still()) return;
+  heard = listen({
+    pauseMs: 1400,
+    onDone: t => {
+      heard = null;
+      if (!still()) return;
+      const w = ` ${t.toLowerCase().replace(/[^a-z0-9 ]/g, " ")} `;
+      if (/ (stop|done|quit) /.test(w)) { endRecall(); return; }
+      let k = -1;
+      if (it.type === "tf") k = / (true|yes|right|correct) /.test(w) ? 0 : / (false|no|wrong) /.test(w) ? 1 : -1;
+      else {
+        const letter = w.match(/ (?:option |answer |letter )?([a-f])(?: |$)/);
+        if (letter) k = it.view[LETTERS.indexOf(letter[1].toUpperCase())] ?? -1;
+        if (k < 0) k = (it.options || []).findIndex(o => o.length > 2 && w.includes(` ${o.toLowerCase().replace(/[^a-z0-9 ]/g, " ").trim()} `));
+      }
+      if (k >= 0) pickQuiz(k); else { turn = ""; void loudPick(it); }
+    },
+    onError: msg => { heard = null; toast(msg, 4200); }
+  });
 }
 async function gradeQuiz(good: boolean) {
   const z = R?.quiz;
   if (!R || !z || R.done) return;
-  z.answers.push({ got: good, said: R.typed.slice(0, 400) });
+  const it = z.items[R.i];
+  z.answers[it.orig] = { got: good, said: R.typed.slice(0, 400), ...(it.type !== "short" && z.picked !== null ? { pick: z.picked } : {}) };
+  z.picked = null;
   R.results.push(good);
   if (good) R.got++;
   R.i++;
@@ -1266,6 +1334,15 @@ export function installHomeListeners() {
     if (!alive || !R || R.done || e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target as HTMLElement;
     if (t.closest("input, textarea, [contenteditable='true'], .sheetwrap, .searchwrap")) return;
+    const it = R.quiz?.items[R.i];
+    if (it && it.type !== "short") {
+      // multiple choice and true or false: a letter (or 1 to 6) picks, Enter goes on
+      if (R.revealed) return;
+      const k = e.key.toLowerCase();
+      const pos = it.type === "tf" && (k === "t" || k === "f") ? (k === "t" ? 0 : 1) : "abcdef".includes(k) && k.length === 1 ? "abcdef".indexOf(k) : /^[1-6]$/.test(k) ? +k - 1 : -1;
+      if (pos >= 0 && pos < it.view.length) { e.preventDefault(); pickQuiz(it.view[pos]); }
+      return;
+    }
     if (!R.revealed) { if ((e.key === " " || e.key === "Enter") && t.tagName !== "BUTTON") { e.preventDefault(); reveal(); } return; }
     if (e.key === "1" || e.key === "2") { e.preventDefault(); document.querySelector<HTMLButtonElement>(e.key === "1" ? ".racts .again" : ".racts .got")?.click(); }
   });

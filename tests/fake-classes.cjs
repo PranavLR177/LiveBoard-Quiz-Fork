@@ -82,10 +82,17 @@ class FakeClasses {
       // pop quizzes (class_quizzes / quiz_results in supabase/schema.sql)
       case "teacher_release_quiz": {
         const c = this.owned(b.p_class, uid);
-        const qs = (Array.isArray(b.p_questions) ? b.p_questions : []).filter(x => x && String(x.q || "").trim()).map(x => ({ q: String(x.q).trim().slice(0, 300), a: String(x.a || "").trim().slice(0, 600) }));
+        const qs = (Array.isArray(b.p_questions) ? b.p_questions : []).filter(x => x && (String(x.q || "").trim() || x.img)).map((x, n) => {
+          if (x.img && !(/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(x.img) && x.img.length <= 280000)) throw new Error(`Question ${n + 1}: that picture is too large or not an image.`);
+          const type = x.type === "choice" || x.type === "tf" ? x.type : "short", out = { type, q: String(x.q || "").trim().slice(0, 300), a: String(x.a || "").trim().slice(0, 600) };
+          if (type === "tf") { if (![0, 1].includes(x.correct)) throw new Error(`Question ${n + 1}: pick whether it's true or false.`); Object.assign(out, { options: ["True", "False"], correct: x.correct }); }
+          if (type === "choice") { const o = (x.options || []).map(v => String(v).trim().slice(0, 120)).filter(Boolean); if (o.length < 2 || o.length > 6) throw new Error(`Question ${n + 1}: give 2 to 6 options.`); if (!(x.correct >= 0 && x.correct < o.length)) throw new Error(`Question ${n + 1}: mark the right option.`); Object.assign(out, { options: o, correct: x.correct }); }
+          if (x.img) out.img = x.img;
+          return out;
+        });
         if (!qs.length) throw new Error("Add at least one question.");
         if (qs.length > 20) throw new Error("A pop quiz holds up to 20 questions.");
-        const q = { id: crypto.randomUUID(), class_id: c.id, title: String(b.p_title || "").trim().slice(0, 80) || "Pop quiz", questions: qs, required: !!b.p_required, due_at: b.p_due || null, closed: false, created_at: new Date().toISOString() };
+        const q = { id: crypto.randomUUID(), class_id: c.id, title: String(b.p_title || "").trim().slice(0, 80) || "Pop quiz", questions: qs, required: !!b.p_required, due_at: b.p_due || null, closed: false, shuffle: !!b.p_shuffle, created_at: new Date().toISOString() };
         this.quizzes.unshift(q);
         this.onPing?.("INSERT", { id: q.id, class_id: q.class_id, title: q.title }, "class_quizzes");
         return q.id;
@@ -93,7 +100,7 @@ class FakeClasses {
       case "teacher_quizzes": {
         this.owned(b.p_class, uid);
         return this.quizzes.filter(q => q.class_id === b.p_class).map(q => { const rs = this.results.filter(r => r.quiz_id === q.id && this.member(r.user_id, q.class_id));
-          return { id: q.id, title: q.title, questions: q.questions.length, required: q.required, due_at: q.due_at, closed: q.closed, created_at: q.created_at, done: rs.length, students: this.count(q.class_id), avg_pct: rs.length ? Math.round(100 * rs.reduce((t, r) => t + r.score / r.total, 0) / rs.length) : null }; });
+          return { id: q.id, title: q.title, questions: q.questions.length, required: q.required, due_at: q.due_at, closed: q.closed, created_at: q.created_at, done: rs.length, students: this.count(q.class_id), avg_pct: rs.length ? Math.round(100 * rs.reduce((t, r) => t + r.score / r.total, 0) / rs.length) : null, shuffle: !!q.shuffle, items: q.questions.map(({ img, ...x }) => x) }; });
       }
       case "teacher_quiz_results": {
         const q = this.quizzes.find(x => x.id === b.p_quiz); if (!q) throw new Error("Quiz not found."); this.owned(q.class_id, uid);
@@ -106,14 +113,14 @@ class FakeClasses {
       }
       case "my_quizzes":
         return this.quizzes.filter(q => this.member(uid, q.class_id)).map(q => { const r = this.results.find(x => x.quiz_id === q.id && x.user_id === uid), c = this.classes.get(q.class_id);
-          return (!q.closed || r) ? { id: q.id, class_id: q.class_id, class_name: c.name, teacher_name: c.teacher, title: q.title, questions: q.questions, required: q.required, due_at: q.due_at, created_at: q.created_at, done: !!r, score: r?.score ?? null, total: r?.total ?? null } : null; }).filter(Boolean);
+          return (!q.closed || r) ? { id: q.id, class_id: q.class_id, class_name: c.name, teacher_name: c.teacher, title: q.title, questions: q.questions, required: q.required, due_at: q.due_at, created_at: q.created_at, done: !!r, score: r?.score ?? null, total: r?.total ?? null, shuffle: !!q.shuffle } : null; }).filter(Boolean);
       case "submit_quiz": {
         const q = this.quizzes.find(x => x.id === b.p_quiz && this.member(uid, x.class_id));
         if (!q) throw new Error("Quiz not found.");
         if (q.closed) throw new Error("This quiz is closed.");
         if (!Array.isArray(b.p_answers) || b.p_answers.length !== q.questions.length) throw new Error("Answer every question.");
         let r = this.results.find(x => x.quiz_id === q.id && x.user_id === uid);
-        if (!r) { const answers = b.p_answers.map(a => ({ got: !!a.got, said: String(a.said || "").slice(0, 400) })); r = { quiz_id: q.id, user_id: uid, answers, score: answers.filter(a => a.got).length, total: answers.length, at: new Date().toISOString() }; this.results.push(r); }
+        if (!r) { const answers = b.p_answers.map((a, i) => { const it = q.questions[i], objective = it.type !== "short", pick = objective && typeof a.pick === "number" ? a.pick : undefined; return { got: objective ? pick === it.correct : !!a.got, said: String(a.said || "").slice(0, 400), ...(pick !== undefined ? { pick } : {}) }; }); r = { quiz_id: q.id, user_id: uid, answers, score: answers.filter(a => a.got).length, total: answers.length, at: new Date().toISOString() }; this.results.push(r); }
         return { score: r.score, total: r.total };
       }
       default: return undefined;

@@ -24,7 +24,7 @@ export const pendingQuizzes = () => quizzes.filter(q => !q.done && q.questions.l
 export const allQuizzes = () => quizzes;
 export function onQuizChange(fn: () => void) { quizListeners.add(fn); return () => { quizListeners.delete(fn); }; }
 /** Sends a quiz's result and marks it done here. */
-export async function sendQuiz(id: string, answers: { got: boolean; said: string }[]) {
+export async function sendQuiz(id: string, answers: { got: boolean; said: string; pick?: number }[]) {
   const r = await src.submitQuiz(id, answers);
   const q = quizzes.find(x => x.id === id); if (q) Object.assign(q, { done: true, score: r.score, total: r.total });
   quizListeners.forEach(fn => fn());
