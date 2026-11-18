@@ -1,4 +1,4 @@
-import type { ClassesBackend, RosterRow, StudentWork, TeacherClass } from "../../marker-slides/app/classesApi";
+import type { ClassesBackend, QuizResult, RosterRow, StudentWork, TeacherClass, TeacherQuiz } from "../../marker-slides/app/classesApi";
 import { classroomClient } from "./client";
 
 /* A teacher's classes on LiveBoard's own Supabase project: the teacher_* functions in supabase/schema.sql. Every one of
@@ -28,6 +28,16 @@ export function supabaseClasses(): ClassesBackend | null {
       const w = await run<StudentWork>("teacher_student_work", { p_class: classId, p_student: studentId });
       return { notes: Array.isArray(w?.notes) ? w.notes : [], markers: Array.isArray(w?.markers) ? w.markers : [] };
     },
-    async tieRoom(room, secret, classId) { await run("room_for_class", { p_room: room, p_secret: secret, p_class: classId }); }
+    async tieRoom(room, secret, classId) { await run("room_for_class", { p_room: room, p_secret: secret, p_class: classId }); },
+    async quizzes(classId) {
+      const rows = await run<Record<string, unknown>[]>("teacher_quizzes", { p_class: classId });
+      return rows.map((r): TeacherQuiz => ({ id: String(r.id), title: String(r.title), questions: Number(r.questions), required: !!r.required, dueAt: (r.due_at as string) || null, closed: !!r.closed, createdAt: String(r.created_at), done: Number(r.done), students: Number(r.students), avgPct: r.avg_pct == null ? null : Number(r.avg_pct) }));
+    },
+    async releaseQuiz(classId, title, questions, required, dueAt) { return await run<string>("teacher_release_quiz", { p_class: classId, p_title: title, p_questions: questions, p_required: required, p_due: dueAt }); },
+    async quizResults(quizId) {
+      const rows = await run<Record<string, unknown>[]>("teacher_quiz_results", { p_quiz: quizId });
+      return rows.map((r): QuizResult => ({ userId: String(r.user_id), name: String(r.display_name), done: !!r.done, score: r.score == null ? null : Number(r.score), total: r.total == null ? null : Number(r.total), finishedAt: (r.finished_at as string) || null, answers: Array.isArray(r.answers) ? r.answers as QuizResult["answers"] : [] }));
+    },
+    async closeQuiz(quizId, remove = false) { await run("teacher_close_quiz", { p_quiz: quizId, p_delete: remove }); }
   };
 }

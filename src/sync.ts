@@ -476,7 +476,7 @@ export async function leaveClass(classId: string) {
   const { error } = await sb.rpc("leave_class", { p_class: classId });
   if (error) throw new Error(error.message);
 }
-export type ClassPing = { type: "live"; classId: string; room: string; title: string } | { type: "ended"; classId: string };
+export type ClassPing = { type: "live"; classId: string; room: string; title: string } | { type: "ended"; classId: string } | { type: "quiz"; classId: string; quizId: string };
 /** Tells `cb` the moment a teacher starts (or stops) a live lesson for one of this account's classes. It's pushed by
  *  Supabase Realtime from the class_pings table, which row level security limits to the class's members; nothing
  *  asks the server on a timer. Returns a function that stops listening. */
@@ -486,8 +486,31 @@ export function subscribeClassPings(cb: (p: ClassPing) => void): () => void {
   const ch = client.channel("class-pings").on("postgres_changes", { event: "*", schema: "public", table: "class_pings" }, (p: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
     if (p.eventType === "DELETE") { if (p.old?.class_id) cb({ type: "ended", classId: String(p.old.class_id) }); }
     else if (p.new?.class_id && p.new.room) cb({ type: "live", classId: String(p.new.class_id), room: String(p.new.room), title: String(p.new.title || "") });
+  }).on("postgres_changes", { event: "INSERT", schema: "public", table: "class_quizzes" }, (p: { new: Record<string, unknown> }) => {
+    // a pop quiz released to one of this account's classes (row level security sends it to members only)
+    if (p.new?.id && p.new.class_id) cb({ type: "quiz", classId: String(p.new.class_id), quizId: String(p.new.id) });
   }).subscribe();
   return () => { void client.removeChannel(ch); };
+}
+export type Quiz = { id: string; classId: string; className: string; teacher: string; title: string; questions: { q: string; a: string }[]; required: boolean; dueAt: number | null; createdAt: number; done: boolean; score: number | null; total: number | null };
+/** Pop quizzes released to this account's classes: open ones, and ones already taken (with the score). */
+export async function myQuizzes(): Promise<Quiz[] | null> {
+  if (!sb || !session) return null;
+  const { data, error } = await sb.rpc("my_quizzes");
+  if (error) { console.warn(error); return null; }
+  return ((data || []) as Record<string, unknown>[]).map(r => ({
+    id: String(r.id), classId: String(r.class_id), className: String(r.class_name || ""), teacher: String(r.teacher_name || ""), title: String(r.title || "Pop quiz"),
+    questions: Array.isArray(r.questions) ? (r.questions as { q: unknown; a: unknown }[]).map(x => ({ q: String(x?.q || ""), a: String(x?.a || "") })).filter(x => x.q) : [],
+    required: !!r.required, dueAt: r.due_at ? Date.parse(String(r.due_at)) : null, createdAt: Date.parse(String(r.created_at)) || Date.now(), done: !!r.done,
+    score: r.score == null ? null : Number(r.score), total: r.total == null ? null : Number(r.total)
+  }));
+}
+/** Sends a quiz result: for each question, whether the student marked it Got it, and what they wrote or said. */
+export async function submitQuiz(quizId: string, answers: { got: boolean; said: string }[]): Promise<{ score: number; total: number }> {
+  if (!sb || !session) throw new Error("Sign in to send your quiz.");
+  const { data, error } = await sb.rpc("submit_quiz", { p_quiz: quizId, p_answers: answers });
+  if (error) throw new Error(error.message || "Couldn't send your quiz.");
+  return data as { score: number; total: number };
 }
 /** The classes this account is in, with any live lesson running for each. Null when signed out or unreachable. */
 export async function myClasses(): Promise<MyClass[] | null> {

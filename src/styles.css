@@ -2002,3 +2002,25 @@ body:has(.rsback) .livenotice { display: none; } /* recall has the screen; the l
 .calsheet .caladd { flex-wrap: nowrap; }
 .calsheet .caladd #calTitle { flex: none; }
 .calsheet .cwk, .calsheet .cday, .calsheet .cwk *, .calsheet .cday * { text-transform: none; letter-spacing: normal; }
+
+/* ---------- Pop quizzes, student side ---------- */
+.rslip[data-state="quiz"] { background: linear-gradient(180deg, var(--g2), var(--g3)); box-shadow: 6px 10px 26px -10px color-mix(in srgb, var(--g2) 70%, transparent), inset -2px 0 0 rgba(255, 255, 255, .18); animation: slipbob 6.5s cubic-bezier(.4, 0, .3, 1) infinite; }
+.rslip[data-state="quiz"] .rslip-wave { animation: slipwave 6.5s ease-out infinite; }
+.rslip[data-state="quiz"].required { animation-duration: 4.5s; }
+.rslip[data-state="quiz"] .rslip-n::before { content: "?"; margin-right: 2px; opacity: .8; }
+.quiznotice { border-color: color-mix(in srgb, var(--g2) 45%, var(--line)); bottom: 96px; }
+.quiznotice .lntext small { color: var(--g2); }
+.qnmark { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--g2); color: #fff; font: 800 16px var(--display); }
+body:has(.rsback) .quiznotice { display: none; }
+.rscard.quizcard .pill { letter-spacing: .06em; }
+.quizdone .qerr { color: var(--bad); }
+.bquiz { grid-column: 1 / -1; }
+.bquiz ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.bquiz li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); }
+.bquiz li span { display: flex; flex-direction: column; min-width: 0; }
+.bquiz li small { color: var(--muted); font-size: 12px; }
+.bquiz li.req { border-color: color-mix(in srgb, var(--g2) 50%, var(--line)); background: color-mix(in srgb, var(--g2) 6%, var(--paper)); }
+.bquiz li.done { opacity: .75; }
+.bquiz li em { font: 700 15px var(--mono); font-style: normal; }
+
+@media (max-width: 520px) { .rslip-bubble { white-space: normal; width: max-content; max-width: calc(100vw - 72px); } }

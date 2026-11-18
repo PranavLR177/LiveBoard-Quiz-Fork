@@ -4,7 +4,7 @@ import { classes as src } from "../classSource";
 import { isDue, recallable } from "../study";
 import { classroomUrl } from "../role";
 import { openClassroom } from "../classroom/open";
-import { onLiveChange } from "./liveNotice";
+import { allQuizzes, onLiveChange, onQuizChange } from "./liveNotice";
 import { $, esc, reducedMotion, toast } from "../util";
 import type { Course } from "../types";
 
@@ -127,6 +127,7 @@ export function renderClasses(root: HTMLElement, h: Handlers): () => void {
             <p class="small ${due ? "" : "muted"}">${due ? `<b>${due}</b> to recall today. Start it from the dial.` : "Nothing due today."}</p>`
             : `<p class="muted small">Mark a passage in a note for this class and it becomes a recall question here.</p>`}</section>
         <section class="bcard bweek"><h3>This week</h3><div id="bBoard" class="bboard">Loading…</div></section>
+        ${quizzesHTML(c)}
       </div>
       <footer class="bfoot">${c.kind === "teacher"
         ? `<p class="small">${c.shares && lc ? `${c.teacher ? esc(c.teacher) : "Your teacher"} can read your notes and markers in <b>${esc(lc.name)}</b>, not the rest of your notes. Leaving stops it.` : "You're in this class without sharing notes."}</p>`
@@ -134,7 +135,18 @@ export function renderClasses(root: HTMLElement, h: Handlers): () => void {
         ${v.leaving ? `<span class="bconfirm">Leave ${esc(c.name)}? Your notes stay yours. <button class="btn danger-quiet" id="bLeaveYes">Leave class</button><button class="btn" id="bLeaveNo">Stay</button></span>` : `<button class="linkbtn" id="bLeave">Leave class…</button>`}</footer>`;
   }
 
+  /** The class's pop quizzes: ones still to take, then ones taken with the score. */
+  function quizzesHTML(c: MyClass) {
+    const qs = allQuizzes().filter(q => q.classId === c.id);
+    if (!qs.length) return "";
+    const todo = qs.filter(q => !q.done), done = qs.filter(q => q.done).slice(0, 4);
+    return `<section class="bcard bquiz"><h3>Pop quizzes${todo.length ? ` <small>${todo.length}</small>` : ""}</h3><ul>
+      ${todo.map(q => `<li class="todo${q.required ? " req" : ""}"><span><b>${esc(q.title)}</b><small>${q.questions.length} question${q.questions.length === 1 ? "" : "s"}${q.required ? " · required" : ""}${q.dueAt ? ` · due ${new Date(q.dueAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}` : ""}</small></span><button class="btn primary small" data-quiz="${esc(q.id)}">Take it</button></li>`).join("")}
+      ${done.map(q => `<li class="done"><span><b>${esc(q.title)}</b><small>sent to ${c.teacher ? esc(c.teacher) : "your teacher"}</small></span><em>${q.score ?? "–"} / ${q.total ?? q.questions.length}</em></li>`).join("")}</ul></section>`;
+  }
+
   function wireClass(page: HTMLElement, c: MyClass) {
+    page.querySelectorAll<HTMLButtonElement>("[data-quiz]").forEach(b => b.onclick = () => dispatchEvent(new CustomEvent("lb-take-quiz", { detail: b.dataset.quiz })));
     page.querySelectorAll<HTMLButtonElement>("[data-note]").forEach(b => b.onclick = () => h.openNote(b.dataset.note!));
     const lc = linked(c);
     const nb = page.querySelector<HTMLButtonElement>("#bNew"); if (nb && lc) nb.onclick = () => h.newBlank(lc.id);
@@ -252,5 +264,6 @@ export function renderClasses(root: HTMLElement, h: Handlers): () => void {
     if (now.some(n => !v.list!.some(c => c.id === n.id))) { void load(); return; }
     if (!v.preview && !v.leaving) paint();
   });
-  return () => { alive = false; off(); };
+  const offQ = onQuizChange(() => { if (v.list && !v.preview && !v.leaving) paint(); });
+  return () => { alive = false; off(); offQ(); };
 }

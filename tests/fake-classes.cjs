@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 class FakeClasses {
   /** `rows(uid)` gives a user's synced notes and markers (FakeSupabase's rows), for the roster and a student's work. */
-  constructor(rows = () => ({ notes: [], markers: [] }), rooms = null) { this.classes = new Map(); this.members = []; this.rows = rows; this.rooms = rooms; this.calls = []; this.onPing = null; }
+  constructor(rows = () => ({ notes: [], markers: [] }), rooms = null) { this.classes = new Map(); this.members = []; this.rows = rows; this.rooms = rooms; this.calls = []; this.onPing = null; this.quizzes = []; this.results = []; }
   member(uid, classId) { return this.members.some(m => m.class_id === classId && m.user_id === uid); }
   code() { const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let c; do { c = Array.from({ length: 6 }, () => A[crypto.randomInt(A.length)]).join(""); } while ([...this.classes.values()].some(x => x.code === c)); return c; }
   owned(id, uid) { const c = this.classes.get(id); if (!c || c.owner !== uid || c.kind !== "teacher") throw new Error("Class not found."); return c; }
@@ -78,6 +78,43 @@ class FakeClasses {
         if (was && was !== r.classId) this.onPing?.("DELETE", { class_id: was });
         if (r.classId) this.onPing?.("INSERT", { class_id: r.classId, room: r.id, title: r.title });
         return null;
+      }
+      // pop quizzes (class_quizzes / quiz_results in supabase/schema.sql)
+      case "teacher_release_quiz": {
+        const c = this.owned(b.p_class, uid);
+        const qs = (Array.isArray(b.p_questions) ? b.p_questions : []).filter(x => x && String(x.q || "").trim()).map(x => ({ q: String(x.q).trim().slice(0, 300), a: String(x.a || "").trim().slice(0, 600) }));
+        if (!qs.length) throw new Error("Add at least one question.");
+        if (qs.length > 20) throw new Error("A pop quiz holds up to 20 questions.");
+        const q = { id: crypto.randomUUID(), class_id: c.id, title: String(b.p_title || "").trim().slice(0, 80) || "Pop quiz", questions: qs, required: !!b.p_required, due_at: b.p_due || null, closed: false, created_at: new Date().toISOString() };
+        this.quizzes.unshift(q);
+        this.onPing?.("INSERT", { id: q.id, class_id: q.class_id, title: q.title }, "class_quizzes");
+        return q.id;
+      }
+      case "teacher_quizzes": {
+        this.owned(b.p_class, uid);
+        return this.quizzes.filter(q => q.class_id === b.p_class).map(q => { const rs = this.results.filter(r => r.quiz_id === q.id && this.member(r.user_id, q.class_id));
+          return { id: q.id, title: q.title, questions: q.questions.length, required: q.required, due_at: q.due_at, closed: q.closed, created_at: q.created_at, done: rs.length, students: this.count(q.class_id), avg_pct: rs.length ? Math.round(100 * rs.reduce((t, r) => t + r.score / r.total, 0) / rs.length) : null }; });
+      }
+      case "teacher_quiz_results": {
+        const q = this.quizzes.find(x => x.id === b.p_quiz); if (!q) throw new Error("Quiz not found."); this.owned(q.class_id, uid);
+        return this.members.filter(m => m.class_id === q.class_id).map(m => { const r = this.results.find(x => x.quiz_id === q.id && x.user_id === m.user_id);
+          return { user_id: m.user_id, display_name: m.display, done: !!r, score: r?.score ?? null, total: r?.total ?? null, finished_at: r?.at ?? null, answers: r?.answers ?? null }; });
+      }
+      case "teacher_close_quiz": {
+        const q = this.quizzes.find(x => x.id === b.p_quiz); if (!q) throw new Error("Quiz not found."); this.owned(q.class_id, uid);
+        if (b.p_delete) this.quizzes = this.quizzes.filter(x => x !== q); else q.closed = true; return null;
+      }
+      case "my_quizzes":
+        return this.quizzes.filter(q => this.member(uid, q.class_id)).map(q => { const r = this.results.find(x => x.quiz_id === q.id && x.user_id === uid), c = this.classes.get(q.class_id);
+          return (!q.closed || r) ? { id: q.id, class_id: q.class_id, class_name: c.name, teacher_name: c.teacher, title: q.title, questions: q.questions, required: q.required, due_at: q.due_at, created_at: q.created_at, done: !!r, score: r?.score ?? null, total: r?.total ?? null } : null; }).filter(Boolean);
+      case "submit_quiz": {
+        const q = this.quizzes.find(x => x.id === b.p_quiz && this.member(uid, x.class_id));
+        if (!q) throw new Error("Quiz not found.");
+        if (q.closed) throw new Error("This quiz is closed.");
+        if (!Array.isArray(b.p_answers) || b.p_answers.length !== q.questions.length) throw new Error("Answer every question.");
+        let r = this.results.find(x => x.quiz_id === q.id && x.user_id === uid);
+        if (!r) { const answers = b.p_answers.map(a => ({ got: !!a.got, said: String(a.said || "").slice(0, 400) })); r = { quiz_id: q.id, user_id: uid, answers, score: answers.filter(a => a.got).length, total: answers.length, at: new Date().toISOString() }; this.results.push(r); }
+        return { score: r.score, total: r.total };
       }
       default: return undefined;
     }
