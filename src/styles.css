@@ -2053,3 +2053,86 @@ body:has(.rsback) .quiznotice { display: none; }
 @media (max-width: 560px) { .qopts { grid-template-columns: 1fr; } .qopts.tf { grid-template-columns: 1fr 1fr; } }
 @media (prefers-reduced-motion: reduce) { .qopt.right, .qopt.wrong { animation: none; } }
 .qopts.tf .qopt span { flex: none; }
+
+/* ---------- Folders by subject: the rotunda on the right edge and its sheet (rotunda.ts) ---------- */
+@property --R { syntax: "<length>"; inherits: true; initial-value: 74px; }
+.rotunda { position: fixed; right: -86px; top: 50%; z-index: 820; width: 200px; height: 200px; translate: 0 -50%; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; --R: 74px; touch-action: none;
+  transition: right .45s cubic-bezier(.2, .9, .3, 1.25), --R .45s cubic-bezier(.2, .9, .3, 1.3), opacity .3s, scale .3s; -webkit-tap-highlight-color: transparent; }
+.rotunda::before { content: ""; position: absolute; inset: 22px; border-radius: 50%; border: 1.5px dashed color-mix(in srgb, var(--ink) 16%, transparent); background: radial-gradient(circle, color-mix(in srgb, var(--paper) 70%, transparent) 40%, transparent 72%); }
+.rring { position: absolute; inset: 0; transform: rotate(var(--turn, 0deg)); transition: transform .5s cubic-bezier(.2, .9, .3, 1.1); animation: rsway 7s ease-in-out infinite alternate; }
+.rotunda.spun .rring { transition: transform .12s linear; }
+@keyframes rsway { from { rotate: -9deg; } to { rotate: 9deg; } }
+.rtab { position: absolute; left: 50%; top: 50%; width: 34px; height: 26px; margin: -13px 0 0 -17px; border-radius: 4px 7px 7px 7px; background: var(--fc); color: var(--ft); display: grid; place-items: center;
+  transform: rotate(var(--a)) translateX(var(--R)) rotate(calc(-1 * var(--a) - var(--turn, 0deg))); box-shadow: 0 4px 10px color-mix(in srgb, var(--fc) 45%, transparent), inset 0 1px 0 rgba(255, 255, 255, .4); }
+.rtab::before { content: ""; position: absolute; left: 3px; top: -5px; width: 14px; height: 6px; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--fc) 72%, #000 28%); }
+.rtab[data-bg="dots"] { background-image: radial-gradient(color-mix(in srgb, var(--ft) 25%, transparent) 1px, transparent 1.4px); background-size: 6px 6px; }
+.rtab[data-bg="stripes"] { background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ft) 16%, transparent) 0 3px, transparent 3px 7px); }
+.rtab[data-bg="grid"] { background-image: linear-gradient(color-mix(in srgb, var(--ft) 16%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--ft) 16%, transparent) 1px, transparent 1px); background-size: 6px 6px; }
+.rtab[data-bg="glow"] { background-image: radial-gradient(120% 90% at 20% 0%, rgba(255, 255, 255, .5), transparent 60%); }
+.rtab i { font: 700 13px/1 var(--display); font-style: normal; }
+.rhub { position: absolute; left: 50%; top: 50%; width: 92px; height: 92px; margin: -46px 0 0 -46px; border-radius: 50%; background: conic-gradient(from 200deg, var(--g1), var(--g2), var(--g3), var(--g4), var(--g5), var(--g6), var(--g7), var(--g1)); padding: 3px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
+.rhub::before { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--paper); }
+.rhub b, .rhub small { position: relative; padding-left: 12px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.rhub b { font: 800 19px/1 var(--display); }
+.rhub small { font: 700 8px var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+@media (hover: hover) { .rotunda:hover { right: -64px; --R: 84px; } .rotunda:hover .rring { animation-play-state: paused; } }
+.rotunda:focus-visible { right: -64px; --R: 84px; outline: none; }
+.rotunda:focus-visible .rhub { box-shadow: 0 0 0 3px var(--cobalt); }
+.rotunda.out { right: -210px; opacity: 0; pointer-events: none; }
+.rotunda { animation: rin .7s .5s cubic-bezier(.2, .9, .3, 1.2) backwards; }
+@keyframes rin { from { right: -210px; } }
+body:has(.rsback) .rotunda, body:has(.calsheet) .rotunda, body:has(#shelf) .rotunda, body:has(#mapView) .rotunda { opacity: 0; pointer-events: none; }
+@media (max-width: 640px) { .rotunda { scale: .72; transform-origin: 100% 50%; right: -66px; top: 70%; } .rotunda:focus-visible { right: -60px; } }
+@media (prefers-reduced-motion: reduce) { .rring, .rotunda { animation: none; } .rotunda, .rring { transition: none; } }
+@media print { .rotunda, .fsback { display: none !important; } }
+
+.fsback { position: fixed; inset: 0; z-index: 880; background: color-mix(in srgb, var(--desk) 35%, transparent); backdrop-filter: blur(5px) saturate(.9); -webkit-backdrop-filter: blur(5px) saturate(.9); }
+.fspanel { --fc: var(--g5); position: absolute; right: 0; top: 0; bottom: 0; width: min(1180px, 90vw); overflow: auto; overscroll-behavior: contain; padding: 0 30px 40px 38px;
+  background: radial-gradient(110% 70% at 100% 0%, color-mix(in srgb, var(--fc) 16%, transparent), transparent 60%), color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(22px) saturate(1.2); -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  border-radius: 28px 0 0 28px; box-shadow: -30px 0 90px -30px rgba(10, 8, 30, .5), inset 1px 0 0 var(--line); transition: background .5s; }
+.fspanel::before { content: ""; position: fixed; right: 0; top: 0; bottom: 0; width: 8px; background: linear-gradient(180deg, var(--g4), var(--g5), var(--g6)); }
+.fshead { position: sticky; top: 0; z-index: 5; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 26px 0 16px; background: linear-gradient(180deg, color-mix(in srgb, var(--paper) 92%, transparent) 70%, transparent); }
+.fshead h2 { margin: 4px 0 2px; font: 800 30px/1.05 var(--display); letter-spacing: -.02em; }
+.fshead small { font: 12px var(--mono); color: var(--muted); }
+.fshead .rskick { color: var(--fc); }
+.fsacts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fsfind { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--paper); color: var(--muted); }
+.fsfind svg { width: 15px; height: 15px; flex: none; }
+.fsfind input { border: 0; outline: 0; background: none; font: 14px var(--sans, inherit); color: var(--ink); width: 210px; }
+.fsfind:focus-within { border-color: var(--fc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fc) 22%, transparent); }
+.fsgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 34px 22px; padding: 30px 4px 10px; }
+.fscard { border: 0; background: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--ink); text-align: center; }
+.fscard .fsf { position: relative; --W: 178px; transform: none; transition: transform .35s cubic-bezier(.2, .9, .3, 1.3); }
+.fscard .fsf .file { box-shadow: 0 -1px 3px rgba(20, 15, 50, .14); }
+@media (hover: hover) { .fscard:hover .fsf { transform: translateY(-4px) rotate(-1.5deg); } }
+@media (hover: hover) { .fscard:hover .fsf .file { transform: translate(calc(var(--k) * .7em), calc(-1.6em - var(--k) * 2em)) rotateX(calc(9deg + var(--k) * 7deg)) rotate(calc(var(--k) * 1.1deg)); } }
+.fscard:focus-visible .fsf .file, .fsf.open .file { transform: translate(calc(var(--k) * .7em), calc(-1.6em - var(--k) * 2em)) rotateX(calc(9deg + var(--k) * 7deg)) rotate(calc(var(--k) * 1.1deg)); }
+.fscard:focus-visible { outline: none; }
+.fscard:focus-visible .ffront { box-shadow: 0 0 0 3px var(--paper), 0 0 0 5px var(--fc); }
+.fsmeta { font: 11.5px var(--mono); color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.fsmeta em { font-style: normal; color: var(--mark); font-weight: 700; }
+.fsmeta u { text-decoration: none; padding: 0 6px; border-radius: 99px; background: color-mix(in srgb, var(--fc) 16%, transparent); color: var(--ink); }
+.fsh3 { font: 700 12px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 26px 0 10px; }
+.fsnotes { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.fsnotes.big { padding-top: 6px; }
+.fsnote { position: relative; text-align: left; border: 1px solid var(--line); border-top: 5px solid var(--c); border-radius: 14px; background: var(--paper); padding: 14px 16px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; min-height: 92px; color: var(--ink); box-shadow: var(--shadow); transition: transform .25s cubic-bezier(.2, .9, .3, 1.3), box-shadow .25s; }
+.fsnote b { font: 700 16px/1.2 var(--display); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.fsnote span { margin-top: auto; font: 11.5px var(--mono); color: var(--muted); }
+@media (hover: hover) { .fsnote:hover { transform: translateY(-3px) rotate(-.4deg); box-shadow: 0 0 0 1.5px var(--c), 0 12px 26px -8px color-mix(in srgb, var(--c) 45%, transparent); } }
+.fsnote:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 45%, transparent); }
+.fsdue { position: absolute; right: 12px; top: 12px; width: 9px; height: 9px; border-radius: 50%; background: var(--mark); box-shadow: 0 0 0 3px var(--paper); }
+.fsempty { color: var(--muted); font-size: 15px; grid-column: 1 / -1; padding: 20px 0; }
+.fshead.infolder { align-items: center; }
+.fsback-btn { border: 0; background: none; font: 600 14px var(--display); color: var(--muted); cursor: pointer; padding: 8px 4px; }
+@media (hover: hover) { .fsback-btn:hover { color: var(--ink); } }
+.fstab { margin-right: auto; background: var(--fc); color: var(--ft); font: 700 15px var(--display); padding: 8px 18px; border-radius: 12px 12px 12px 4px; box-shadow: 0 8px 20px color-mix(in srgb, var(--fc) 35%, transparent); max-width: 40vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fsinto { font: 800 34px/1.05 var(--display); letter-spacing: -.02em; margin: 14px 0 18px; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.fsinto small { font: 13px var(--mono); color: var(--muted); letter-spacing: 0; }
+@media (max-width: 640px) {
+  .fspanel { width: 100vw; border-radius: 0; padding: 0 16px 30px; }
+  .fsfind input { width: 100%; } .fsfind { flex: 1 1 100%; order: 3; }
+  .fsacts { width: 100%; }
+  .fsgrid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 26px 12px; }
+  .fscard .fsf { --W: 136px; }
+  .fstab { max-width: 60vw; }
+}
