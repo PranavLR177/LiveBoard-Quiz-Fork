@@ -285,7 +285,7 @@ const BASE = process.env.BASE || "http://localhost:4173";
 
   // A study session: start the timer, mark something, end it, and the exit ticket quizzes exactly what was marked.
   await p.goto(BASE); await p.waitForSelector("#focusBtn"); await p.waitForTimeout(2300);
-  await p.click("#focusBtn"); await p.click('[data-min="15"]');
+  await p.click("#focusBtn"); await p.click('[data-min="15"]'); await p.click("#fStart");
   ok(/^1[45]:\d\d$/.test((await p.textContent("#focusBtn .fbt")).trim()), "starting a study session shows the countdown in the header");
   await p.click(".hbtn[data-act='blank']");
   await p.waitForSelector("#editor .ProseMirror");

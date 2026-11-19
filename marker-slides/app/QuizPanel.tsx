@@ -110,7 +110,7 @@ export default function QuizPanel({ classId, students }: { classId: string; stud
   };
 
   return <section className="quiz-panel" aria-label="Pop quizzes">
-    <div className="quiz-top"><p className="quiet">Release a few questions to everyone in the class: short answer, multiple choice or true or false, with pictures if you like. They show up at the top of each student's recall right away.</p>
+    <div className="quiz-top"><p className="quiet">Students see it at the top of their recall.</p>
       <button className="primary" onClick={() => setMaking(true)} disabled={!students} title={students ? '' : 'No students in this class yet'}>New pop quiz</button></div>
     {error && <p role="alert" className="class-error">{error} <button onClick={() => setError('')}>Dismiss</button></p>}
     {list === null ? <p className="quiet">Loading quizzes…</p> : !list.length ? <p className="class-none">No pop quizzes yet.</p> :

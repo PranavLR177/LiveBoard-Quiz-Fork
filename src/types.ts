@@ -83,6 +83,9 @@ export type EntryKind = "deadline" | "exam" | "event" | "study" | "note";
 export interface Deadline { id: string; title: string; date: string; courseId?: string | null; done?: boolean; deleted?: boolean; updatedAt: number;
   kind?: EntryKind; time?: string | null; repeat?: "weekly" | null; noteId?: string | null }
 
+/** One finished Focus session. */
+export interface FocusEntry { at: number; mins: number; markers: number; rounds: number; goal?: string; met?: boolean | null }
+
 export interface Meta {
   key: "meta";
   studyDays: string[];
@@ -103,6 +106,7 @@ export interface Meta {
   claimDeclined?: string[]; // accounts that chose to keep this device's signed-out notes separate
   gen?: number; // the account's server data generation this device last synced with (it changes when the online data is deleted)
   erasedAt?: number | null; // when this device found the account's online data had been deleted elsewhere
+  focusLog?: FocusEntry[]; // finished Focus sessions, kept on this device (not uploaded)
 }
 
 export interface AIResult {

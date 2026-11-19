@@ -35,9 +35,9 @@ export function renderTeacher(root: HTMLElement, initialId?: string): () => void
     if (objectURL) URL.revokeObjectURL(objectURL);
     objectURL = null;
   }
-  root.innerHTML = `<section class="teacher"><header class="tw-head"><div><span class="tw-eyebrow">TEACHER WORKSPACE</span><h1>Worksheet studio</h1><p>Place interactive hubs on your worksheet. Keep the document, expand what students can do.</p></div></header>
+  root.innerHTML = `<section class="teacher"><header class="tw-head"><div><span class="tw-eyebrow">TEACHER WORKSPACE</span><h1>Worksheet studio</h1><p>Add questions and hints to a worksheet.</p></div></header>
     <div class="tw-toolbar"><label class="btn primary">Upload document<input id="tw-upload" type="file" accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp" hidden></label><label class="btn">Open lesson file<input id="tw-open" type="file" accept=".json" hidden></label><label class="tw-picker">Saved lessons<select id="tw-lessons" aria-label="Saved lessons"><option value="">Choose a lesson</option></select></label><span id="tw-status" role="status">Saved on this device · export to share</span></div>
-    <div id="tw-work"><div class="tw-empty"><span class="tw-orbit">✦</span><h2>Your worksheet is the starting point.</h2><p>Upload a PDF, image, or text document. Add questions, progressive hints, media, and space for students to think—right where they belong.</p><p>PDF pages keep their original text, pictures, and layout. Scans work too.</p></div></div></section>`;
+    <div id="tw-work"><div class="tw-empty"><span class="tw-orbit">✦</span><h2>Upload a worksheet</h2><p>PDF, image or text. Add questions, hints and media where they fit.</p><p>PDF pages keep their original text, pictures, and layout. Scans work too.</p></div></div></section>`;
   async function list() {
     const items = await db.worksheets.orderBy("updatedAt").reverse().toArray();
     if (!alive) return;

@@ -191,14 +191,14 @@ export function renderClasses(root: HTMLElement, h: Handlers): () => void {
     }
     const can = src.configured(), inn = signedIn();
     return `<span class="brings" aria-hidden="true"><i></i><i></i><i></i></span>
-      <header class="bhead"><span class="eyebrow">A new divider</span><h2>Join with a code</h2></header>
+      <header class="bhead"><span class="eyebrow">Classes</span><h2>Join with a code</h2></header>
       <form class="bcodeform" id="bCodeForm" autocomplete="off">
         <input id="bCode" class="bcodein" maxlength="8" spellcheck="false" autocapitalize="characters" aria-label="Class or lesson code" placeholder="CODE" inputmode="text">
         <button class="btn primary" id="bGo" disabled>Go</button>
       </form>
       <p class="bhint" id="bHint">A <b>6-letter</b> code joins a class. An <b>8-letter</b> code joins a live lesson that's on right now.</p>
-      ${!can ? `<p class="muted small">Classes need LiveBoard accounts, which this copy isn't connected to. Live lessons by code still work.</p>`
-        : !inn ? `<div class="bsignin"><p class="small">Sign in to join classes: they live on your account, so you see them on every device. Live lessons work without signing in.</p><button class="btn" id="bSignIn">Sign in</button></div>`
+      ${!can ? `<p class="muted small">Classes need an account. You can still join a live lesson with a code.</p>`
+        : !inn ? `<div class="bsignin"><p class="small">Sign in to join a class. Live lessons work without an account.</p><button class="btn" id="bSignIn">Sign in</button></div>`
         : v.failed ? `<p class="muted small">Couldn't reach your classes just now. <button class="linkbtn" id="bRetry">Try again</button></p>`
         : !(v.list || []).length ? `<p class="muted small">You're not in any classes yet. Your teacher, or a classmate who made a study group, has the code.</p>` : ""}`;
   }

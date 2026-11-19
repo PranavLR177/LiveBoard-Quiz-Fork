@@ -172,7 +172,7 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
 
   return <><TopBar role="teacher" here="library"/><main className="deck-library">
     <header className="library-header"><div><h1>Presentations</h1>
-      <p className="library-stats">Create live lessons around your students’ questions.</p></div>
+      </div>
       <div className="library-header-actions">
         <input ref={fileInput} type="file" accept={importAccept} multiple hidden onChange={event=>{const files=Array.from(event.target.files||[]);event.target.value='';void importFiles(files)}}/>
         <button className="primary" disabled={busy} onClick={()=>setCreating(true)}>New presentation</button>
@@ -224,8 +224,8 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
 
     {creating&&<div className="modal-backdrop" onClick={()=>setCreating(false)}><section className="modal creation-picker" role="dialog" aria-modal="true" aria-label="New presentation" onClick={event=>event.stopPropagation()}>
       <button className="modal-close" aria-label="Close new presentation" onClick={()=>setCreating(false)}>×</button>
-      <span className="eyebrow">YOUR NEXT LIVE LESSON</span><h2>Start a presentation</h2><p>Turn your ideas into a conversation with your class.</p>
-      <button className="creation-option" onClick={()=>{setCreating(false);create()}}><b>✦ Start from scratch</b><span>A blank slide. Your ideas, your way.</span></button>
+      <h2>New presentation</h2>
+      <button className="creation-option" onClick={()=>{setCreating(false);create()}}><b>✦ Start from scratch</b><span>Start with a blank slide.</span></button>
       <button className="creation-option" onClick={()=>{setCreating(false);fileInput.current?.click()}}><b>↑ Import slides</b><span>Bring a PDF, images, or a LiveBoard file.</span></button>
       <p className="fineprint">Using PowerPoint or Google Slides? Export as a PDF first.</p>
     </section></div>}

@@ -31,7 +31,7 @@ let tab: Tab = "ask";
 let busy = false;
 let promptTimer = 0;   // rotates the Write box's placeholder while it's empty
 /** Shown in turn in the empty Write box, so it reads as an invitation rather than a form field. */
-const PROMPTS = ["What do you want to add here?", "Say it the way you'd text a friend.", "What just clicked?", "What would trip you up on the exam?", "Explain it to yourself from last week.", "One example. Just one.", "What's still fuzzy?"];
+const PROMPTS = ["What do you want to add here?", "What just clicked?", "What would trip you up on the exam?", "Add an example.", "What's still unclear?"];
 const MOODS: [number, string][] = [[0, "blank page energy"], [1, "warming up"], [12, "on a roll"], [40, "now you're cooking"], [90, "this is turning into a page"], [180, "okay, professor"]];
 const words = (t: string) => (t.trim().match(/\S+/g) || []).length;
 const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -220,7 +220,7 @@ function threadHTML(items: [ThreadMsg, number][]) {
     const changed = t.sourcePassage !== undefined && current && (current.text.slice(0,1500) !== t.sourcePassage || t.sources?.some(s => !(s.field === 'passage' ? current!.text : context[s.field]).includes(s.quote)));
     const evidence = t.sourcePassage === undefined ? '' : `<details class="answer-sources" data-source-index="${i}"><summary>${changed ? 'Source changed · review this answer' : t.sources?.length ? 'Quoted from your note' : 'No note citations supplied'}</summary>${t.sources?.map(s=>`<blockquote><small>${{passage:'Marked passage',before:'Before the marker',after:'After the marker'}[s.field]}</small><p>${esc(s.quote)}</p></blockquote>`).join('') || '<p class="sub">This response has no matching source quotes. Check it against your material.</p>'}<p class="sub">Quotes match the supplied text; this does not verify the explanation.</p><button class="textlink" data-source-jump>Show marker in note ↗</button></details>`;
     return `<div class="ta ${t.role}">${who}${body}${calc}${evidence}${act}</div>`;
-  }).join("")}${busy ? `<div class="ta thinking"><i></i><i></i><i></i><span class="tw" aria-hidden="true"><em>Reading your note</em><em>Connecting the dots</em><em>Writing it down</em></span></div>` : ""}</div>`;
+  }).join("")}${busy ? `<div class="ta thinking"><i></i><i></i><i></i><span class="tw" aria-hidden="true"><em>Reading your note</em><em>Thinking</em><em>Writing</em></span></div>` : ""}</div>`;
 }
 
 // Update provenance labels without rebuilding the student's in-progress form.
@@ -254,7 +254,7 @@ function render() {
   ws.innerHTML = `
     <button class="wsgrab" id="mGrab" aria-label="Drag to move" title="Drag to move"><i></i></button>
     <div class="wshead">
-      <span class="eyebrow"><i class="tdot"></i>Marker workspace · ${TYPE_INFO[m.type].label}</span>
+      <span class="eyebrow"><i class="tdot"></i>${TYPE_INFO[m.type].label}</span>
       <button class="textlink" id="mCompare" title="Compare two markers side by side">Compare ⇄</button>
       <button class="mx" id="mClose" aria-label="Close marker">×</button>
     </div>
@@ -270,8 +270,8 @@ function render() {
     <nav class="wstabs" role="tablist">${TABS.map(([k, l]) => `<button role="tab" data-tab="${k}" aria-selected="${k === tab}">${l}</button>`).join("")}</nav>
     <div class="wsbody" id="wsBody" role="tabpanel">${body()}</div>
     <div class="wsfoot">
-      <span class="saved"><i></i>Autosaved with this note</span>
-      ${m.closedAt ? "" : `<button class="finish" id="mFinish" title="Done with this marker? Close it out: it leaves recall and your home page, and stays in your learning map as a milestone."><i aria-hidden="true">✓</i>Close out</button>`}
+      <span class="saved"><i></i>Saved</span>
+      ${m.closedAt ? "" : `<button class="finish" id="mFinish" title="Mark as done. It leaves recall and stays in your learning map."><i aria-hidden="true">✓</i>Close out</button>`}
       <button class="more" id="mMore" aria-label="More marker options" aria-expanded="false">•••</button>
       <div class="moremenu" id="mMenu" hidden>
         <div class="mmlabel">Marker type</div>
@@ -367,7 +367,7 @@ function body(): string {
     case "journey": return journeyHTML(m);
     case "write": {
       const kept = m.thread.map((t, i) => [t, i] as [ThreadMsg, number]).filter(([t]) => t.role === "self" && t.text.startsWith("✎"));
-      return `<h3>Think here. Keep the page clear.</h3><p class="sub">Draft, outline, or collect a thought inside this point.</p>
+      return `<h3>Draft</h3>
         <div class="wdesk"><textarea id="wDraft" data-autofocus rows="7" placeholder="${PROMPTS[0]}">${esc(m.draft || "")}</textarea>
           <div class="wdfoot"><span class="wmood" id="wMood"></span><span class="wcount" id="wCount"></span></div></div>
         <div class="tchips"><button data-tpl="outline">+ Outline</button><button data-tpl="check">+ Checklist</button><button data-tpl="example">+ Worked example</button><button data-tpl="def">+ Definition</button></div>
@@ -380,7 +380,7 @@ function body(): string {
       const items = m.thread.map((t, i) => [t, i] as [ThreadMsg, number]).filter(([t]) => !(t.role === "self" && t.text.startsWith("✎")));
       const ctx = contextAround(m.id);
       return `${threadHTML(items)}
-        ${aiOn === false ? `<div class="wsnote off">AI is not connected. Save a question and work through your own answer. Commands like "make this a list", "remind me Friday" or "link to …" still work.</div>` : ""}
+        ${aiOn === false ? `<div class="wsnote off">AI isn't available. You can still save a question and answer it yourself, or try “make this a list” or “remind me Friday”.</div>` : ""}
         <div class="tchips sugg ${items.length ? "compact" : ""}">${contextActions(m).map(s => `<button data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
         <form id="aForm" class="askform">
           <textarea id="mIn" data-autofocus rows="3" maxlength="600" placeholder="${m.text ? "Ask about this point, or tell the marker what to do…" : "Draft, outline, summarize, calculate…"}" ${busy ? "disabled" : ""}></textarea>
@@ -389,8 +389,8 @@ function body(): string {
         <details class="src"><summary>Read surrounding source</summary><p>${esc(ctx.before.slice(-500))} <mark>${esc(m.text || "[this point]")}</mark> ${esc(ctx.after.slice(0, 500))}</p></details>`;
     }
     case "expand":
-      return `<h3>Turn a point into a page.</h3><p class="sub">Create an editable scaffold from this marker's source and saved work.</p>
-        ${aiBanner("Written into your note under this point, tinted until you keep it.", "Local templates · these organize your material, without generating AI explanations.")}
+      return `<h3>Expand into a page</h3><p class="sub">Builds an outline from this passage and what you've saved.</p>
+        ${aiBanner("Written into your note under this point, tinted until you keep it.", "Without AI, this uses a template filled from your notes.")}
         <div class="cards">
           <button class="card" data-x="study"><span class="ic">✦</span><span><b>Study note</b><small>Source → explanation → example</small></span><span class="go">↗</span></button>
           <button class="card" data-x="outline"><span class="ic">≡</span><span><b>Outline</b><small>Structure your next section</small></span><span class="go">↗</span></button>
@@ -400,7 +400,7 @@ function body(): string {
     case "calc": {
       const calcs = m.thread.map((t, i) => [t, i] as [ThreadMsg, number]).filter(([t]) => t.calc);
       const guess = (m.text.match(/-?[\d.]+\s*[-+*/^×÷]\s*-?[\d.]+(\s*[-+*/^×÷]\s*-?[\d.]+)*/) || [""])[0];
-      return `<h3>Work it out precisely.</h3><p class="sub">A math engine does the arithmetic with 64 significant digits, so the answer is computed, not guessed. Units work too: <code>23.4 mL * 0.1 mol/L</code>, <code>5 kg to lb</code>.</p>
+      return `<h3>Calculate</h3><p class="sub">Exact math, not AI. Units work too: <code>23.4 mL * 0.1 mol/L</code>, <code>5 kg to lb</code>.</p>
         <form id="cForm" class="wsrow"><input id="cIn" data-autofocus class="code" value="${esc(guess)}" placeholder="e.g. e^0.5 * 0.5^4 / 4!" maxlength="300"><button class="btn1">Run</button></form>
         <div class="result" id="cOut">${lastCalc}</div>
         ${calcs.length ? `<div class="wslabel">Worked in this marker</div>${threadHTML(calcs)}` : ""}`;
@@ -413,7 +413,7 @@ function body(): string {
       const groups = new Map<string, Marker[]>();
       others.forEach(x => { const t = note(x.noteId)?.title || "Note"; groups.set(t, [...(groups.get(t) || []), x]); });
       const opt = (x: Marker) => `<option value="${x.id}">${esc(x.text.slice(0, 70))}${x.text.length > 70 ? "…" : ""}</option>`;
-      return `<h3>Connect the dots.</h3><p class="sub">Link another marker, including one in a different note.</p>
+      return `<h3>Link</h3><p class="sub">Link to another marker, in this note or any other.</p>
         <label class="wslabel" for="rSel">Choose a marker</label>
         <select id="rSel" data-autofocus><option value="">Select a marker…</option>
           ${sugg.length ? `<optgroup label="Suggested">${sugg.map(opt).join("")}</optgroup>` : ""}
@@ -427,7 +427,7 @@ function body(): string {
     case "recall": {
       const q = m.recallQ || (m.text ? `What does this mean, in your own words?` : "");
       const a = m.recallA || m.text;
-      return `<h3>Give this thought another day.</h3><p class="sub">Choose what you want to remember. Review stays connected to its source.</p>
+      return `<h3>Recall</h3><p class="sub">Write the question you want to be asked later.</p>
         ${m.passageEditedAt && m.recallQ ? `<div class="wsnote">The marked words changed since this question was written. Check that it still fits${aiOn ? ", or rewrite it with AI below" : ""}.</div>` : ""}
         <label class="check"><input type="checkbox" id="rcOn" ${m.recallOff ? "" : "checked"}> Include this marker in daily recall</label>
         <label class="wslabel" for="rcQ">Question</label><textarea id="rcQ" rows="2" data-autofocus>${esc(q)}</textarea>

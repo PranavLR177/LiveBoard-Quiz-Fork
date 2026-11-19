@@ -35,7 +35,7 @@ export async function openSettings(section?: string, onChanged?: () => void) {
     <section id="account"><h3>Account</h3>
       <p class="muted classroom-row">You're using LiveBoard ${{ individual: "for <b>yourself</b>: notes, notebooks and a calendar, with no class features.", student: `as a <b>student</b>. In class, <a class="classroom-link" id="studentDiscussion" href="${esc(classroomUrl("student"))}">join a live lesson</a> with your teacher's code.`, teacher: `as a <b>teacher</b>: <a class="classroom-link" id="teacherPresentation" href="${esc(classroomUrl("teacher"))}">Presentations</a> and live classes, plus <a class="classroom-link" href="#teacher">Worksheets</a> from your PDFs.` }[role]}</p>
       <div class="seg roleseg" id="sRole" role="radiogroup" aria-label="Use LiveBoard as">${(["individual", "student", "teacher"] as const).map(r => `<button role="radio" data-to="${r}" aria-checked="${role === r}">${{ individual: "Just me", student: "Student", teacher: "Teacher" }[r]}</button>`).join("")}</div>
-      ${!syncConfigured() ? `<p class="muted">Sync isn't set up on this server, so notes are saved on this device only. Export a backup below to move them.</p>`
+      ${!syncConfigured() ? `<p class="muted">Notes are saved on this device only. Export a backup to move them.</p>`
         : user ? `<p>Signed in as <b>${esc(user.email)}</b>. Notes sync across your devices.${pendingCount() ? ` <span class="muted">${pendingCount()} change${pendingCount() === 1 ? "" : "s"} waiting to upload.</span>` : ""}</p>
           <div class="row"><button class="btn" id="sOut">Sign out</button><button class="btn" id="sOutRemove" title="Also delete this account's notes from this device once they're uploaded">Sign out and remove from this device</button></div>
           <p class="muted small">Signing out keeps a copy on this device for next time, unless you remove it. Someone else signing in here never sees it.</p>`
@@ -51,7 +51,7 @@ export async function openSettings(section?: string, onChanged?: () => void) {
       <p class="muted">Saved on this device only.</p>
     </section>
     <section><h3>AI markers</h3>
-      <p class="${ai.ai ? "" : "muted"}">${ai.ai ? `Connected${ai.model ? ` · ${esc(ai.model)}` : ""}.` : "Not connected on this server. Math, formatting, links and reminders still work; explaining, expanding and drafting need the AI. The setup guide in the README covers adding an Anthropic API key."}</p>
+      <p class="${ai.ai ? "" : "muted"}">${ai.ai ? `Connected${ai.model ? ` · ${esc(ai.model)}` : ""}.` : "Not available. Math, formatting, links and reminders still work."}</p>
     </section>
     <section id="classes" class="${school ? "" : "noclass"}"><h3>${school ? "Courses and classes" : "Notebooks"}</h3>
       <p class="muted">${school ? "Share a course as a class to get a class leaderboard. Anyone with the code can join." : "Each notebook has its own colour on the dial. Rename them here."}</p>
@@ -59,7 +59,7 @@ export async function openSettings(section?: string, onChanged?: () => void) {
         <label class="exam" title="Exam date, used by “remind me before the exam”"><span>Exam</span><input type="date" class="cexam" value="${esc(c.examDate || "")}" aria-label="Exam date for ${esc(c.name)}"></label>
         ${c.classCode ? `<span class="code" title="Class code">${esc(c.classCode)}</span>` : `<button class="btn small" data-share="${c.id}" ${user ? "" : "disabled title='Sign in first'"}>Share as class</button>`}</div>`).join("")}</div>
       ${school ? `<p class="row"><a class="btn" id="sJoin" href="#classes">Join a class with a code</a><span class="muted small">Your classes, and any live lesson, are under Classes.</span></p>` : ""}
-      ${user ? "" : `<p class="muted small">${syncConfigured() ? "Sign in to share a course as a class." : "Classes need accounts, which aren't set up on this server."}</p>`}
+      ${user ? "" : `<p class="muted small">${syncConfigured() ? "Sign in to share a course as a class." : "Classes need an account."}</p>`}
     </section>
     <section><h3>Backup</h3>
       ${import.meta.env.VITE_ARTIFACT ? `<p class="muted small">This is a preview filled with sample notes. Backups download from the installed app.</p><button class="btn" id="sDemo">Remove sample notes</button>` : `<div class="row"><button class="btn" id="sExport">Download backup</button><label class="btn" for="sImport">Restore backup</label><input type="file" id="sImport" accept="application/json,.json" hidden></div>`}

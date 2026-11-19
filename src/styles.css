@@ -1113,24 +1113,13 @@ button.moutlabel { border: 0; background: none; padding: 0; font: 11px var(--mon
 .answer-sources blockquote { margin:12px 0; border-left:2px solid var(--tc); padding-left:12px; }
 .answer-sources small { color:var(--muted); }
 
-/* ---------- Study session: a timer in the header that ends with a quiz on what you marked ---------- */
+/* ---------- Focus: the timer chip in the header (the sheet is further down) ---------- */
 .focuswrap { position: relative; }
 .focusbtn { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); background: none; border-radius: 99px; padding: 5px 12px 5px 7px; font: 600 12.5px var(--display); color: var(--muted); transition: border-color .15s, color .15s, background .2s; }
 @media (hover: hover) { .focusbtn:hover { color: var(--ink); border-color: color-mix(in srgb, var(--cobalt) 50%, var(--line)); } }
 .focusbtn .fring { --p: 0; width: 16px; height: 16px; border-radius: 50%; background: conic-gradient(var(--g7) calc(var(--p) * 1%), color-mix(in srgb, var(--muted) 45%, transparent) 0); -webkit-mask: radial-gradient(farthest-side, transparent 52%, #000 56%); mask: radial-gradient(farthest-side, transparent 52%, #000 56%); }
 .focusbtn.on { color: var(--ink); border-color: color-mix(in srgb, var(--g7) 55%, var(--line)); background: color-mix(in srgb, var(--g7) 10%, transparent); font-variant-numeric: tabular-nums; }
 .focusbtn .fbn:not(:empty) { background: var(--mark); color: #2A2100; border-radius: 99px; padding: 0 6px; font: 700 11px var(--mono); }
-.focuspop { left: 0; right: auto; width: 270px; }
-.focuspop h3 { margin: 2px 0 6px; font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.focuspop p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.45; color: var(--muted); }
-.fmins { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.fmins button { border: 1.5px solid var(--line); background: none; border-radius: 12px; padding: 8px 0 6px; font: 10px var(--mono); color: var(--muted); display: flex; flex-direction: column; align-items: center; transition: transform .16s cubic-bezier(.2, .9, .25, 1.5), border-color .15s; }
-.fmins button b { font: 700 19px/1.1 var(--display); color: var(--ink); }
-@media (hover: hover) { .fmins button:hover { border-color: var(--g7); transform: translateY(-2px); } }
-.fbig { font: 700 40px/1 var(--display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin: 4px 0 8px; }
-.frow { display: flex; gap: 8px; }
-.frow button { flex: 1; border: 1.5px solid var(--line); background: none; border-radius: 12px; padding: 8px 10px; font: 600 13px var(--display); }
-.frow button.pri { background: var(--cobalt); color: var(--oncobalt); border-color: transparent; }
 .sessiondone { position: fixed; z-index: 1500; top: 70px; left: 50%; translate: -50% 0; width: min(360px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; background: var(--paper); border: 1.5px solid color-mix(in srgb, var(--g7) 55%, var(--line)); border-radius: 20px;
   box-shadow: 0 30px 70px -20px color-mix(in srgb, var(--g7) 55%, rgba(10, 12, 30, .6)), 0 6px 16px rgba(10, 12, 30, .16); animation: sdin .5s cubic-bezier(.2, .9, .25, 1.2); }
 @keyframes sdin { from { opacity: 0; transform: perspective(900px) translateY(-24px) rotateX(24deg) scale(.92); } }
@@ -2136,3 +2125,136 @@ body:has(.rsback) .rotunda, body:has(.calsheet) .rotunda, body:has(#shelf) .rotu
   .fscard .fsf { --W: 136px; }
   .fstab { max-width: 60vw; }
 }
+
+/* ---------- Focus sheet (session.ts) ---------- */
+.focusbtn.brk { border-color: color-mix(in srgb, var(--g4) 60%, var(--line)); background: color-mix(in srgb, var(--g4) 12%, transparent); }
+.focusbtn.brk .fring { background: conic-gradient(var(--g4) calc(var(--p) * 1%), color-mix(in srgb, var(--muted) 45%, transparent) 0); }
+.focusbtn.paused .fring { opacity: .45; }
+.focusbtn.on:not(.paused):not(.brk) .fring { animation: fcbreathe 3.2s ease-in-out infinite; }
+@keyframes fcbreathe { 50% { scale: 1.18; } }
+.fcback { position: fixed; inset: 0; z-index: 900; display: grid; place-items: center; padding: clamp(0px, 3vh, 28px) clamp(0px, 2.4vw, 28px); background: color-mix(in srgb, var(--desk) 45%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.fcsheet { --fa: var(--g7); position: relative; width: min(1040px, 100%); max-height: min(760px, 100%); overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; padding: 22px 26px 20px; border-radius: 28px; border: 1px solid var(--line);
+  background: radial-gradient(90% 60% at 0% 0%, color-mix(in srgb, var(--g6) 14%, transparent), transparent 60%), radial-gradient(70% 50% at 100% 100%, color-mix(in srgb, var(--fa) 12%, transparent), transparent 60%), var(--paper); box-shadow: 0 40px 100px -40px rgba(10, 8, 30, .6); transition: background .6s; }
+.fcsheet.onbreak { --fa: var(--g4); }
+.fchead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.fchead h2 { margin: 0; font: 800 30px/1.05 var(--display); letter-spacing: -.02em; }
+.fchead small { font: 12px var(--mono); color: var(--muted); }
+.fcbody { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 28px; align-items: start; }
+.fcleft { display: flex; flex-direction: column; align-items: center; gap: 14px; padding-top: 6px; }
+.fcdialwrap { position: relative; width: min(340px, 78vw); aspect-ratio: 1; touch-action: none; border-radius: 50%; outline: none; cursor: grab; }
+.fcdialwrap.live { cursor: default; }
+.fcdialwrap.dragging { cursor: grabbing; }
+.fcdialwrap:focus-visible .fctrack { stroke: color-mix(in srgb, var(--cobalt) 45%, var(--line)); }
+.fcdial { width: 100%; height: 100%; overflow: visible; }
+.fctrack { fill: none; stroke: color-mix(in srgb, var(--ink) 9%, transparent); stroke-width: 18; }
+.fcarc { fill: none; stroke: url(#fcg); stroke-width: 18; stroke-linecap: round; filter: drop-shadow(0 6px 12px color-mix(in srgb, var(--g7) 35%, transparent)); }
+.onbreak .fcarc { stroke: var(--g4); filter: drop-shadow(0 6px 12px color-mix(in srgb, var(--g4) 35%, transparent)); }
+.fcdialwrap.over .fcarc { stroke-dasharray: 10 6; }
+.fcknob { fill: var(--paper); stroke: var(--g7); stroke-width: 4; filter: drop-shadow(0 4px 8px rgba(10, 8, 30, .3)); transition: r .2s; }
+.fcdialwrap.dragging .fcknob { r: 16; }
+.fchead { flex: none; }
+.fchead .rsclose { flex: none; }
+
+.fctick { stroke: color-mix(in srgb, var(--ink) 22%, transparent); stroke-width: 1.5; stroke-linecap: round; }
+.fctick.big { stroke: color-mix(in srgb, var(--ink) 45%, transparent); stroke-width: 2; }
+.fclab { font: 600 11px var(--mono); fill: var(--muted); text-anchor: middle; }
+
+.fchead + .fcbody { margin-top: 6px; }
+.fccenter { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; pointer-events: none; }
+.fccenter > * { pointer-events: auto; }
+.fcmin { display: flex; align-items: baseline; gap: 6px; }
+.fcmin input { width: 3.2ch; border: 0; background: none; outline: none; text-align: right; font: 800 64px/1 var(--display); letter-spacing: -.04em; color: var(--ink); font-variant-numeric: tabular-nums; -moz-appearance: textfield; border-bottom: 2px solid transparent; }
+.fcmin input::-webkit-inner-spin-button, .fcmin input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.fcmin input:focus { border-bottom-color: var(--g7); }
+.fcmin span { font: 600 15px var(--mono); color: var(--muted); }
+.fccenter small { font: 12px var(--mono); color: var(--muted); }
+.fcbig { font: 800 60px/1 var(--display); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.fcdialwrap.paused .fcbig { opacity: .5; animation: fcblink 1.6s steps(2) infinite; }
+@keyframes fcblink { 50% { opacity: .25; } }
+.fmins { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.fmins button { border: 1.5px solid var(--line); background: var(--paper); border-radius: 12px; padding: 6px 12px 5px; font: 10px var(--mono); color: var(--muted); display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: border-color .2s, transform .25s cubic-bezier(.2, .9, .3, 1.4), background .2s; }
+.fmins button b { font: 700 18px/1.1 var(--display); color: var(--ink); }
+.fmins button.on { border-color: var(--g7); background: color-mix(in srgb, var(--g7) 10%, var(--paper)); }
+@media (hover: hover) { .fmins button:hover { border-color: var(--g7); transform: translateY(-2px); } }
+.fcright { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.fcright h3 { margin: 0 0 8px; font: 700 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.fcseg { display: inline-flex; padding: 3px; border-radius: 12px; background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.fcseg button { border: 0; background: none; border-radius: 9px; padding: 7px 14px; font: 600 13.5px var(--display); color: var(--muted); cursor: pointer; transition: background .2s, color .2s; }
+.fcseg button[aria-checked="true"] { background: var(--paper); color: var(--ink); box-shadow: 0 2px 8px rgba(10, 8, 30, .12); }
+.fccycles { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 10px; }
+.fcfield { display: flex; align-items: center; gap: 10px; font: 600 13px var(--display); color: var(--muted); margin-top: 8px; }
+.fccycles .fcfield { margin-top: 0; }
+.fcchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.fcchips button { border: 1.5px solid var(--line); background: var(--paper); border-radius: 99px; padding: 5px 12px; font: 600 13px var(--display); color: var(--ink); cursor: pointer; transition: border-color .2s, background .2s; }
+.fcchips button[aria-pressed="true"] { border-color: var(--fa); background: color-mix(in srgb, var(--fa) 12%, var(--paper)); }
+.fcstep { display: flex; align-items: center; gap: 4px; }
+.fcstep button { width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--paper); font: 600 16px var(--display); color: var(--ink); cursor: pointer; }
+.fcstep b { min-width: 2ch; text-align: center; font: 700 17px var(--display); color: var(--ink); }
+.fcsum { margin: 8px 0 0; font: 12px var(--mono); color: var(--muted); }
+.fcsum:empty { display: none; }
+.fcinput { width: 100%; box-sizing: border-box; height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--paper); font: 15px var(--sans, inherit); color: var(--ink); }
+.fcinput:focus { outline: none; border-color: var(--g6); box-shadow: 0 0 0 3px color-mix(in srgb, var(--g6) 20%, transparent); }
+.fcfield .fcinput { flex: 1; min-width: 0; }
+.fcopt { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; cursor: pointer; }
+.fcopt input { appearance: none; -webkit-appearance: none; flex: none; width: 34px; height: 20px; margin: 1px 0 0; border-radius: 99px; background: color-mix(in srgb, var(--ink) 16%, transparent); position: relative; cursor: pointer; transition: background .2s; }
+.fcopt input::after { content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: translate .25s cubic-bezier(.2, .9, .3, 1.3); }
+.fcopt input:checked { background: var(--g6); }
+.fcopt input:checked::after { translate: 14px 0; }
+.fcopt input:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+.fcopt b { display: block; font: 600 14px var(--display); color: var(--ink); }
+.fcopt small { font-size: 12.5px; color: var(--muted); }
+.fcvol { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; }
+.fcvol input { flex: 1; max-width: 260px; accent-color: var(--g6); }
+.fcfoot { display: flex; align-items: flex-end; gap: 18px; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); flex-wrap: wrap; }
+.fcweek { display: flex; align-items: flex-end; gap: 6px; height: 56px; }
+.fcweek span { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 16px; height: 100%; justify-content: flex-end; }
+.fcweek i { width: 10px; height: max(3px, calc(var(--h) * .4)); border-radius: 4px; background: color-mix(in srgb, var(--g6) 45%, transparent); }
+.fcweek i.now { background: linear-gradient(180deg, var(--g7), var(--g6)); }
+.fcweek small { font: 10px var(--mono); color: var(--muted); }
+.fcweektxt, .fcrun { display: flex; flex-direction: column; }
+.fcweektxt b, .fcrun b { font: 700 18px var(--display); }
+.fcweektxt small, .fcrun small { font: 11px var(--mono); color: var(--muted); }
+.fcstart { margin-left: auto; border: 0; border-radius: 99px; padding: 14px 30px; font: 600 16px var(--display); color: #fff; background: linear-gradient(90deg, var(--g6), var(--g7)); box-shadow: 0 14px 30px -10px color-mix(in srgb, var(--g7) 70%, transparent); cursor: pointer; transition: transform .25s cubic-bezier(.2, .9, .3, 1.4), box-shadow .25s; }
+.fcstart b { font-weight: 800; }
+@media (hover: hover) { .fcstart:hover { transform: translateY(-2px) scale(1.02); } }
+.fcctl { width: min(340px, 100%); display: flex; gap: 8px; flex-wrap: wrap; }
+.fcctl button { flex: 1; border: 1.5px solid var(--line); background: var(--paper); border-radius: 12px; padding: 9px 10px; font: 600 14px var(--display); color: var(--ink); cursor: pointer; }
+.fcctl button.pri { background: var(--cobalt); color: var(--oncobalt); border-color: transparent; }
+.fcctl button.end { color: var(--bad); }
+.fcgoal { margin: 0; font: 700 20px/1.25 var(--display); }
+.fcmarks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fcmarks li { display: flex; gap: 8px; align-items: baseline; font-size: 14px; line-height: 1.35; }
+.fcmarks i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--mark); translate: 0 -1px; }
+.fcmore, .fcnone { font-size: 13px; color: var(--muted); margin: 0; }
+.fcpips { display: flex; gap: 6px; margin-left: auto; align-self: center; }
+.fcpips i { width: 22px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 12%, transparent); }
+.fcpips i.done { background: var(--g6); }
+.fcpips i.now { background: linear-gradient(90deg, var(--g6), var(--g7)); animation: fcbreathe 3.2s ease-in-out infinite; }
+.sdgoal p { margin: 8px 0 6px; }
+.sdgoal q { font-weight: 600; }
+.focuscue { position: fixed; z-index: 1450; top: 70px; left: 50%; translate: -50% 0; display: flex; align-items: center; gap: 12px; padding: 12px 14px 12px 18px; border-radius: 18px; background: var(--paper); border: 1.5px solid color-mix(in srgb, var(--g4) 55%, var(--line)); box-shadow: 0 24px 60px -20px rgba(10, 12, 30, .45); animation: sdin .5s cubic-bezier(.2, .9, .25, 1.2); max-width: calc(100vw - 24px); }
+.focuscue.back { border-color: color-mix(in srgb, var(--g7) 55%, var(--line)); }
+.focuscue b { font: 700 17px var(--display); white-space: nowrap; }
+.focuscue span { font: 12px var(--mono); color: var(--muted); }
+.focuscue button { border: 1.5px solid var(--line); background: none; border-radius: 99px; padding: 5px 12px; font: 600 13px var(--display); color: var(--ink); cursor: pointer; white-space: nowrap; }
+.focuscue #cueX { border: 0; padding: 4px 6px; font-size: 18px; color: var(--muted); }
+/* Quiet screen: only the note and the timer. The header comes back when you reach for it. */
+body.focusquiet .top > :not(.brand):not(.focuswrap):not(.spacer) { opacity: 0; pointer-events: none; transition: opacity .5s; }
+@media (hover: hover) { body.focusquiet .top:hover > * { opacity: 1 !important; pointer-events: auto !important; } }
+body.focusquiet .top > * { transition: opacity .5s; }
+body.focusquiet #recallSlip, body.focusquiet .rslip, body.focusquiet #rotunda, body.focusquiet .follow, body.focusquiet .morning, body.focusquiet .spinrow, body.focusquiet .devswitch { opacity: 0 !important; pointer-events: none !important; transition: opacity .5s; }
+body.focushold .livenotice, body.focushold .quiznotice { display: none !important; }
+body:has(.fcback) .rotunda, body:has(.fcback) .rslip { opacity: 0; pointer-events: none; }
+@media (max-width: 760px) {
+  .fcsheet { border-radius: 0; height: 100%; max-height: 100%; padding: 18px 16px 16px; }
+  .fcbody { grid-template-columns: 1fr; gap: 18px; }
+  .fcdialwrap { width: min(280px, 74vw); }
+  .fcmin input, .fcbig { font-size: 52px; }
+  .fcstart { width: 100%; margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .focusbtn .fring, .fcpips i.now, .fcdialwrap.paused .fcbig { animation: none !important; } }
+@media print { .fcback, .focuscue { display: none !important; } }
+.fcdot { fill: var(--paper); stroke: var(--g7); stroke-width: 3; }
+.onbreak .fcdot { stroke: var(--g4); }
+@media (max-width: 760px) { .fcback { padding: 0; } }
+body:has(.fcback) .focuscue { display: none; }

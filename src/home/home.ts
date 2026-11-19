@@ -133,8 +133,8 @@ async function renderMorning() {
       <div class="lbpop exampop" data-pop="exam:${x.courseId}" ${pop === "exam:" + x.courseId ? "" : "hidden"}><h3>${esc(x.name)} exam · ${inDays(x.days)}</h3>
         ${x.markers.length ? `<div class="ebig">${ring(x.pct, x.color, "big")}<span class="epct"><b>${x.pct}%</b>ready</span>
           <div class="ebars">${(["Unsure", "Getting it", "Mastered"] as const).map((l, i) => `<div><span>${l}</span><i><u style="width:${Math.round(100 * x.counts[i] / x.markers.length)}%;background:${i === 2 ? "var(--good)" : i ? x.color : "var(--line)"}"></u></i><b>${x.counts[i]}</b></div>`).join("")}</div></div>
-          <button class="recallbtn cram" data-cram="${x.courseId}" data-tip="${left ? "Opens a cram sitting: your weak spots, plus extra questions written from your notes." : "Everything here is mastered. One more pass won't hurt."}">Cram for this exam <span class="cnt">${left || x.markers.length}</span></button>`
-        : `<button class="recallbtn cram" data-cram="${x.courseId}" data-tip="No markers in ${esc(x.name)} yet. Cram can still write practice questions from the notes themselves.">Cram from your notes</button>`}</div></div>`;
+          <button class="recallbtn cram" data-cram="${x.courseId}" data-tip="${left ? "Practice your weak spots, plus new questions from your notes." : "Everything here is mastered."}">Cram for this exam <span class="cnt">${left || x.markers.length}</span></button>`
+        : `<button class="recallbtn cram" data-cram="${x.courseId}" data-tip="No markers in ${esc(x.name)} yet. Practice with questions from your notes.">Cram from your notes</button>`}</div></div>`;
     }).join("")}
     ${!student ? "" : `<div class="lbwrap" id="lbWrap">${c?.classId && currentUser()
       ? `<button class="chip lbchip" id="lbBtn" data-popbtn="lb" aria-expanded="${pop === "lb"}" aria-controls="lbPop"><span class="lbico" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="6" cy="5.5" r="2.4" fill="currentColor"/><path d="M1.6 13c.3-2.5 2-3.9 4.4-3.9s4.1 1.4 4.4 3.9z" fill="currentColor"/><circle cx="11.6" cy="6.2" r="1.8" fill="currentColor" opacity=".6"/><path d="M11 9.4c2 .1 3.2 1.3 3.5 3.6h-2.6" fill="currentColor" opacity=".6"/></svg></span><b id="lbRank">#–</b><small>in ${esc(c.name)}</small></button><div class="lbpop" id="lbPop" data-pop="lb" ${pop === "lb" ? "" : "hidden"}><h3>${esc(c.name)} · this week</h3><div id="lbRows">Loading…</div></div>`
@@ -177,10 +177,10 @@ function renderFollow() {
   const all = liveMarkers().filter(m => !m.closedAt); // closed-out markers live in the map, not on the home page
   const recent = [...all].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6);
   if (!recent.length) {
-    el.innerHTML = `<div class="followhead"><h2>Follow a thought.</h2></div><p class="followempty">Markers you place show up here, so you can pick a thought back up from anywhere.</p>`;
+    el.innerHTML = `<div class="followhead"><h2>Recent markers</h2></div><p class="followempty">Markers you place will show up here.</p>`;
     return;
   }
-  el.innerHTML = `<div class="followhead"><h2>Follow a thought.</h2><span>${all.length} living point${all.length === 1 ? "" : "s"} in your notes</span>
+  el.innerHTML = `<div class="followhead"><h2>Recent markers</h2><span>${all.length} marker${all.length === 1 ? "" : "s"}</span>
       ${all.filter(m => !m.detachedAt).length >= 2 ? `<button class="mapopen" id="mapOpen" title="See every marker and how you're doing overall">Open your map<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5L9 7M2.5 13.5L7 9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>` : ""}</div>
     <div class="sky" id="sky"></div>
     <div class="fcards">${recent.map(m => {
@@ -668,7 +668,7 @@ function updateInfo() {
   } else if (f.add) {
     setHc("var(--muted)", el);
     html = `<span class="pill addpill">New folder</span><div class="htitle">A folder of your own</div>
-      <div class="note">Give it a name, a colour and a look. It sits left of now on the dial, and holds every note you put in it.</div>
+      <div class="note">Pick a name, a colour and a style.</div>
       <button class="openlink" id="hubMake">Make a folder</button>`;
   } else if (f.custom) {
     // one of your folders: what's in it, and the ways to fill it or change how it looks
@@ -720,7 +720,7 @@ function showPeek(card: HTMLElement, open: (id: string) => void, delay = 170) {
     p.setAttribute("role", "button"); p.setAttribute("aria-label", "Open this marker");
     p.innerHTML = `<div class="ptop"><span class="ptype"><i></i>${esc(TYPE_INFO[m.type].label)}</span><span class="pmast" data-mastery="${m.mastery}"><i></i>${["Unsure", "Getting it", "Mastered"][m.mastery]}</span><span class="pwhen">${when}</span></div>
       ${m.text ? `<blockquote>${esc(m.text.length > 300 ? m.text.slice(0, 300) + "…" : m.text)}</blockquote>` : ""}
-      ${inside ? `<div class="pin2"><small>${inside.tag}</small><p>${esc(inside.text.length > 230 ? inside.text.slice(0, 230) + "…" : inside.text)}</p></div>` : `<div class="pin2 empty"><p>Nothing saved in here yet. Open it and think out loud.</p></div>`}
+      ${inside ? `<div class="pin2"><small>${inside.tag}</small><p>${esc(inside.text.length > 230 ? inside.text.slice(0, 230) + "…" : inside.text)}</p></div>` : `<div class="pin2 empty"><p>Nothing saved yet.</p></div>`}
       <div class="pfoot"><span>${[kept.length ? `${kept.length} saved` : "", asked ? `${asked} asked` : "", links ? `${links} link${links > 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ") || esc(n?.title || "")}</span><b>Open marker<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5L12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></b></div>`;
     document.body.appendChild(p);
     // above the card when there's room, otherwise below; never off the sides
@@ -1267,8 +1267,8 @@ function openSheet() {
   wrap.id = "recallSheet"; wrap.className = "rsback";
   wrap.innerHTML = `<section class="rspanel" role="dialog" aria-modal="true" aria-labelledby="rsTitle">
       <div class="rsbar" id="rsBar" aria-hidden="true"><i></i></div>
-      <header class="rshead"><div><span class="rskick">${R?.quiz ? `Pop quiz · ${esc(R.quiz.className)}${R.quiz.required ? " · required" : ""}` : R?.cram === "Exit ticket" ? "Exit ticket" : R?.cram ? "Cram" : "Recall"}</span><h2 id="rsTitle">${R?.quiz ? esc(R.quiz.title) : R?.cram === "Exit ticket" ? "What did today's lesson leave you with?" : "What do you remember?"}</h2></div>
-        <span class="rsacts">${canListen() ? `<button class="rsloud" id="rsLoud" aria-pressed="${loud()}" title="Out loud: questions read to you, answered by voice, hands-free"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4.500" height="6.500" rx="2"/><rect x="16.500" y="14" width="4.500" height="6.500" rx="2"/></svg><span>Out loud</span></button>` : ""}
+      <header class="rshead"><div><span class="rskick">${R?.quiz ? `Pop quiz · ${esc(R.quiz.className)}${R.quiz.required ? " · required" : ""}` : R?.cram === "Exit ticket" ? "Exit ticket" : R?.cram ? "Cram" : "Recall"}</span><h2 id="rsTitle">${R?.quiz ? esc(R.quiz.title) : "What do you remember?"}</h2></div>
+        <span class="rsacts">${canListen() ? `<button class="rsloud" id="rsLoud" aria-pressed="${loud()}" title="Read questions aloud and answer by voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4.500" height="6.500" rx="2"/><rect x="16.500" y="14" width="4.500" height="6.500" rx="2"/></svg><span>Out loud</span></button>` : ""}
         <button class="rsclose" id="rsClose" aria-label="Close recall (Esc)" title="Close (Esc)">×</button></span></header>
       <div class="rsbody"><div class="rsstage" id="rsStage" aria-live="polite"></div><aside class="rsside" id="rsSide" aria-label="Questions"></aside></div>
     </section>`;
