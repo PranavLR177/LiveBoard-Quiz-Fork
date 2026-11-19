@@ -6,7 +6,7 @@ The teacher home and classroom ship in the main Vite build at `/classroom.html`,
 
 Use Node 22.13 or later. Install dependencies in both the root and `marker-slides/` with `npm ci`. Run the classroom API runtime from `marker-slides/` with `npm run dev -- --hostname 127.0.0.1` (port 5173). Run the root app with `npm run dev -- --host 127.0.0.1 --port 4180`. Open `http://127.0.0.1:4180/` for role selection, or `/classroom.html?view=library` for the teacher home. Root Vite proxies `/api/rooms` to port 5173; `CLASSROOM_API_PROXY` overrides that API address.
 
-Live rooms need the local D1 schema from `marker-slides/drizzle/`, including `0003_student_marker_control.sql`. The permission migration defaults to allowing student markers and lets only a room host change that permission. The server rejects new student markers while paused, while existing markers remain available. The notes API can still use `API_PROXY` independently.
+Live rooms need the local D1 schema from `marker-slides/drizzle/`, through `0004_slide_quizzes.sql`. The permission migration defaults to allowing student markers and lets only a room host change that permission. The server rejects new student markers while paused, while existing markers remain available. The notes API can still use `API_PROXY` independently.
 
 The teacher frontend is bundled with LiveBoard. In a deployed app (any build with `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` set) live rooms use LiveBoard's own Supabase project through the `room_*` functions in `supabase/schema.sql`, so nothing needs to route `/api/rooms`. The D1 runtime described above is the fallback when Supabase isn't configured, which in practice means local development. Both back ends follow the same rules (`marker-slides/tests/rooms.mjs` for D1, `tests/sql/check.sql` for Supabase).
 
@@ -17,6 +17,12 @@ Existing slides become editable text/image objects on read and save that layout 
 The library seeds two five-slide examples once. It does not clear existing users’ libraries. The requested local library replacement was performed separately with a recovery snapshot in the browser’s `liveboard-presentations` IndexedDB database (`libraryBackups` store). Existing decks without a recorded creation timestamp display that explicitly instead of inventing one.
 
 The student join screen is accessible locally without an account login; joining a real room still requires its room code. Browser-local decks are device-local. Hosting and teacher capabilities are distinct from account roles.
+
+## Linked quiz questions
+
+In the teacher view, **Quiz +** starts a question from the current slide or open marker. The circled **N** beside each thumbnail opens the same dialog for that slide. Questions stay attached to the presentation on this device. Only **Share question with class** sends a question to a live room. Students answer beneath the source slide, and **Review answers** shows their submissions to the teacher.
+
+Existing Supabase installations need `supabase/migrations/20261119_slide_quizzes.sql` for live submissions. D1 installations need `marker-slides/drizzle/0004_slide_quizzes.sql`. The standalone HTML preview supports local authoring. Cross-device submissions use the room backend.
 
 ## Validation
 

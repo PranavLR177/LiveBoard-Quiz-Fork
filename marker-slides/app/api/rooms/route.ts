@@ -1,3 +1,4 @@
+import { quizAction } from './quiz';
 import { env } from 'cloudflare:workers';
 const json=(v:unknown,status=200)=>Response.json(v,{status,headers:{'Cache-Control':'no-store'}});
 export async function GET(req:Request){
@@ -28,6 +29,7 @@ export async function POST(req:Request){
  const id=crypto.randomUUID().replace(/-/g,'').slice(0,8).toUpperCase(),secret=crypto.randomUUID();await db.prepare('INSERT INTO rooms (id,secret,title,slides,current,until,created,studentMarkers) VALUES (?,?,?,?,0,0,?,?)').bind(id,secret,clean(b.title,100)||'Untitled lesson',JSON.stringify(b.slides),Date.now(),b.studentMarkers===false?0:1).run();return json({id,secret});}
  const room:any=await db.prepare('SELECT * FROM rooms WHERE id=?').bind(clean(b.room,20)).first();if(!room)return json({error:'Room not found'},404);
  const teacher=req.headers.get('authorization')===`Bearer ${room.secret}`;
+ if(['quizComplete','quizList','quizShare','quizAnswer'].includes(b.action))return await quizAction(db,room,teacher,participant,b);
  if(['control','resolve','edit','end'].includes(b.action)&&!teacher)return json({error:'Only the host can do this.'},403);
  if(b.action==='control'){const count=JSON.parse(room.slides).length;const current=Number.isInteger(b.current)?Math.max(0,Math.min(count-1,b.current)):room.current;const until=b.duration===undefined?room.until:(Number(b.duration)>0?Date.now()+Math.min(900,Number(b.duration))*1000:0);await db.prepare('UPDATE rooms SET current=?,until=?,studentMarkers=? WHERE id=?').bind(current,until,typeof b.studentMarkers==='boolean'?(b.studentMarkers?1:0):room.studentMarkers,room.id).run();}
  else if(b.action==='marker'){if(!teacher&&room.studentMarkers===0)return json({error:'Your teacher has paused student markers.'},403);if(!['question','explain','idea'].includes(b.kind)||!clean(b.body))return json({error:'Write your request first.'},400);if(!Number.isInteger(b.slide)||b.slide<0||b.slide>=JSON.parse(room.slides).length||!Number.isFinite(b.x)||!Number.isFinite(b.y))return json({error:'Select a spot on the slide.'},400);const total:any=await db.prepare('SELECT count(*) n FROM markers WHERE room=?').bind(room.id).first();if(total.n>=500)return json({error:'This room has reached its marker limit.'},400);const region = b.region;
