@@ -27,8 +27,8 @@ const ok = (c, m) => { console.log((c ? "ok   " : "FAIL ") + m); if (!c) errs.pu
   await p.click(".deck-open"); await p.waitForSelector(".slide-canvas");
   await p.click(".lb-back"); await p.waitForSelector(".reel-card");
   ok(p.url() === BASE, "opening a presentation and coming back happen in place, with no page load");
-  await p.click('.lb-top a:has-text("Worksheets")'); await p.waitForSelector(".teacher", { timeout: 10000 });
-  ok(!(await p.$("#classroom-root")) && await p.evaluate(() => getComputedStyle(document.querySelector(".top")).display !== "none"), "Worksheets swaps back to the notes side with its own styles restored");
+  await p.click('.lb-top a:has-text("Student notes")'); await p.waitForSelector(".fcard");
+  ok(!(await p.$("#classroom-root")) && await p.evaluate(() => getComputedStyle(document.querySelector(".top")).display !== "none"), "Student notes swaps back to the notes side with its own styles restored");
   await p.click("#devDot"); await p.click('#devSwitch [data-dev="student"]'); await p.waitForSelector(".fcard", { timeout: 15000 });
   ok(await p.isVisible("#discussionJoin"), "the developer switch goes to Student");
   await p.click('#devSwitch [data-dev="teacher"]'); await p.waitForSelector(".reel-card");

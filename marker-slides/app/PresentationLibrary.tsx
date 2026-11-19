@@ -20,7 +20,7 @@ import Reel,{ReelStrip,classColor,type ReelItem} from './Reel';
    - Finding things. Search across title, class, unit and topic; filters appear only for the labels actually in use. */
 
 type Group='className'|'unit'|'topic';
-type Order='newest'|'oldest'|'markers'|'updated'|'title'|Group;
+type Order='updated'|'title'|Group;
 const groups:[Group,string][]=[['className','Class'],['unit','Unit'],['topic','Topic']];
 const isExample=(deck:Presentation)=>deck.id.startsWith('sample-classroom-');
 const ago=(at:number)=>{const d=Math.floor((Date.now()-at)/864e5);return d<=0?'today':d===1?'yesterday':d<30?d+' days ago':new Date(at).toLocaleDateString()};
@@ -133,7 +133,7 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
     }
   }
   function create(){
-    setEdit({id:crypto.randomUUID(),title:'Untitled presentation',slides:[{...initialSlides[0],title:'Untitled slide',body:'',detail:'',notes:'',visual:'none'}],className:'',unit:'',topic:'',updated:Date.now()});
+    setEdit({id:crypto.randomUUID(),title:'',slides:[{...initialSlides[0],title:'Untitled slide',body:'',detail:'',notes:'',visual:'none'}],className:'',unit:'',topic:'',updated:Date.now()});
   }
   function download(name:string,text:string,type:string){
     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
@@ -153,19 +153,8 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
   }
 
   const facets=groups.filter(([key])=>decks.some(deck=>deck[key]));
-  const [searchOpen,setSearchOpen]=useState(false);
-  const created=(d:Presentation)=>d.created??d.updated??0;
-  const newest=decks.slice().sort((a,b)=>created(b)-created(a)||a.title.localeCompare(b.title)).slice(0,3);
-  const markerTotal=(d:Presentation)=>d.lastSession?.questions.length??d.sampleMarkers?.length??0;
-  function details(d:Presentation){
-    const questions=d.slides.filter(s=>s.questionId).length;
-    return [d.unit||'No unit',markerTotal(d)+' markers',(d.slides.length-questions)+' N slides',questions+' Q slides'].join(' · ');
-  }
   const words=search.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const ordered=decks.filter(deck=>groups.every(([key])=>!filters[key]||deck[key]===filters[key])&&words.every(word=>[deck.title,deck.className,deck.unit,deck.topic,details(deck)].join(' ').toLowerCase().includes(word))).sort((a,b)=>
-    order==='newest'?created(b)-created(a)||a.title.localeCompare(b.title):
-    order==='oldest'?created(a)-created(b)||a.title.localeCompare(b.title):
-    order==='markers'?markerTotal(b)-markerTotal(a)||a.title.localeCompare(b.title):
+  const ordered=decks.filter(deck=>groups.every(([key])=>!filters[key]||deck[key]===filters[key])&&words.every(word=>[deck.title,deck.className,deck.unit,deck.topic].join(' ').toLowerCase().includes(word))).sort((a,b)=>
     order==='updated'?Math.max(b.opened||0,b.updated||0)-Math.max(a.opened||0,a.updated||0): // most recently opened or edited first: that one is in front
     a[order].localeCompare(b[order],undefined,{numeric:true,sensitivity:'base'})||a.title.localeCompare(b.title));
   const examples=decks.filter(isExample);
@@ -190,13 +179,9 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
       </div>
     </header>
     {progress&&<p role="status">{progress}</p>}
-    {newest.length>0&&<nav className="recent-presentations" aria-label="Newest presentations"><b>Newest presentations</b>{newest.map(d=><button key={d.id} onClick={()=>open(d)}>{d.title}</button>)}</nav>}
     <div className="reel-bar">
-      <div className="library-search" onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setSearchOpen(false)}} onKeyDown={e=>{if(e.key==='Escape')setSearchOpen(false)}}>
-        <input aria-label="Find a presentation" aria-expanded={searchOpen} type="search" value={search} placeholder="Find a presentation" onFocus={()=>setSearchOpen(true)} onChange={e=>{setSearch(e.target.value);setSearchOpen(true);setFocus(0)}}/>
-        {searchOpen&&<div className="deck-search-results">{ordered.length?ordered.map(d=><button key={d.id} onClick={()=>open(d)}><b>{d.title}</b><small>{details(d)}</small></button>):<p>No matching presentations</p>}</div>}
-      </div>
-      <select className="library-sort" aria-label="Sort presentations" value={order} onChange={e=>{setOrder(e.target.value as Order);setFocus(0)}}>{Object.entries({newest:'Newest',oldest:'Oldest',updated:'Recent activity',title:'Title A–Z',markers:'Most markers',unit:'Unit',className:'Class',topic:'Topic'}).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select>
+      <label className="library-search"><span className="sr-only">Search</span><input type="search" value={search} placeholder="Find a presentation: title, class, unit or topic" onChange={event=>{setSearch(event.target.value);setFocus(0)}}/></label>
+      <nav className="recent-names" aria-label="Three newest presentations">{decks.slice().sort((a,b)=>(b.created??b.updated)-(a.created??a.updated)).slice(0,3).map(d=><button key={d.id} title={d.title} onClick={()=>open(d)}>{d.title}</button>)}</nav>
       {classes.length>1&&<div className="reel-classes" role="group" aria-label="Show one class">
         <button aria-pressed={!filters.className} onClick={()=>{setFilters({...filters,className:''});setFocus(0)}}>All</button>
         {classes.map(name=><button key={name} aria-pressed={filters.className===name} style={{'--cc':classColor(name)} as any} onClick={()=>{setFilters({...filters,className:filters.className===name?'':name});setFocus(0)}}><i/>{name}</button>)}
@@ -278,8 +263,8 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
 
     {edit&&<div className="modal-backdrop"><section className="modal" role="dialog" aria-modal="true" aria-label="Presentation details"><button className="modal-close" aria-label="Close details" onClick={()=>setEdit(null)}>×</button><h2>Title and class</h2>
       <form onSubmit={event=>{event.preventDefault();const isNew=!decks.some(deck=>deck.id===edit.id);void update(async()=>{await savePresentation({...edit,title:edit.title.trim(),updated:Date.now()});setEdit(null);if(isNew)go(editor(edit.id))})}}>
-        <label>Title<input required value={edit.title} maxLength={100} onChange={event=>setEdit({...edit,title:event.target.value})}/></label>
-        {groups.map(([key,label])=><label key={key}>{label}<input value={edit[key]} maxLength={80} placeholder={key==='className'?'e.g. AP Chemistry, period 3':key==='unit'?'e.g. Unit 7':'e.g. Equilibrium'} onChange={event=>setEdit({...edit,[key]:event.target.value})}/></label>)}
+        <label>Title<input required value={edit.title} maxLength={30} onChange={event=>setEdit({...edit,title:event.target.value})}/><small>{edit.title.length}/30</small></label>
+        {groups.map(([key,label])=><label key={key}>{label}<input value={edit[key]} maxLength={30} placeholder={key==='className'?'e.g. AP Chemistry, period 3':key==='unit'?'e.g. Unit 7':'e.g. Equilibrium'} onChange={event=>setEdit({...edit,[key]:event.target.value})}/><small>{edit[key].length}/30</small></label>)}
         <button className="primary full" disabled={busy||!edit.title.trim()}>Save presentation</button>
       </form>
     </section></div>}

@@ -10,7 +10,7 @@ export default function TopBar({role,here,onHome,status,children}:{role:'teacher
   useEffect(()=>{setDark(isDark());const off=onTheme(()=>setDark(isDark()));return()=>{off()}},[]);
   const inside=embedded(); // embedded in the notes page: the links below switch sides in place instead of loading a page
   const home=inside?'#':role==='teacher'?location.pathname+'?view=library':notesUrl()||location.pathname;
-  const worksheets=inside?'#':notesLink('teacher','#teacher'),notes=inside?'#':role==='teacher'?notesLink('student'):notesUrl(); // a student or individual goes back as whoever they are
+  const notes=inside?'#':role==='teacher'?notesLink('student'):notesUrl(); // a student or individual goes back as whoever they are
   const toHome=(event:{preventDefault():void})=>{if(role==='teacher'){if(onHome){event.preventDefault();onHome()}else if(inside){event.preventDefault();go('?view=library')}}else if(inside){event.preventDefault();toNotes()}};
   const leave=(as?:'student'|'teacher',hash?:string)=>(event:{preventDefault():void})=>{if(inside){event.preventDefault();toNotes(as,hash)}};
   return <header className={'lb-top'+(here==='deck'?' in-deck':'')}>
@@ -21,7 +21,6 @@ export default function TopBar({role,here,onHome,status,children}:{role:'teacher
     <span className="lb-spacer"/>
     {role==='teacher'&&here!=='deck'&&<a className="lb-btn lb-home" href={home} aria-current={here==='library'?'page':undefined} title="Your presentations and live classes" onClick={toHome}>Presentations</a>}
     {role==='teacher'&&here!=='deck'&&<a className="lb-btn" href={inside?'#':location.pathname+'?view=classes'} aria-current={here==='classes'?'page':undefined} title="Your classes: students, their notes and progress" onClick={event=>{if(inside){event.preventDefault();go('?view=classes')}}}>Classes</a>}
-    {role==='teacher'&&worksheets&&<a className="lb-btn" href={worksheets} onClick={leave('teacher','#teacher')} title="Turn a PDF or document into a worksheet with marker questions and hints">Worksheets</a>}
     {children}
     {role!=='projector'&&<button className="lb-iconbtn" onClick={toggleTheme} aria-label={dark?'Switch to light mode':'Switch to dark mode'} title="Light or dark">
       {dark?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z"/></svg>

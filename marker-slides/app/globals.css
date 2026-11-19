@@ -525,3 +525,8 @@ html,body{overflow-x:clip}
 .question-rail .mini-slide{border:1px solid var(--cobalt)}.quiz-rail-group .ghost-thumb{width:calc(100% - 30px);margin:10px 6px 8px 24px;aspect-ratio:1.65;align-content:center}
 .ghost-layout.vertical{grid-template-columns:1fr}.ghost-layout{margin-top:1rem}.draft-footer{display:flex;justify-content:flex-end;margin-top:1rem}
 .image-search-dialog{width:min(640px,90vw);max-height:80vh;overflow:auto;border:1px solid var(--line);border-radius:16px;padding:1.2rem;background:var(--paper);color:var(--ink)}.image-search-dialog::backdrop{background:#100e23bb}.image-search-dialog header,.image-search-dialog form{display:flex;align-items:center;gap:.6rem;justify-content:space-between}.image-search-dialog input{flex:1;min-width:0}.image-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.7rem}.image-results button{width:100%;display:grid;text-align:left;overflow-wrap:anywhere;color:inherit;background:transparent;border:1px solid var(--line);padding:.4rem}.image-results img{width:100%;height:90px;object-fit:contain}
+
+.recent-names{display:flex;min-width:0;gap:.35rem;overflow-x:auto;flex-wrap:nowrap}
+.recent-names button{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:5ch;max-width:18ch;border:1px solid var(--line);border-radius:2rem;padding:.4rem .7rem;background:var(--paper);color:var(--ink)}
+.rail-corners .new-quiz-node{left:auto;right:0;transform:translate(45%,50%);background:var(--cobalt)}
+.rail-corners .thumb-count{right:24px;bottom:2px}
