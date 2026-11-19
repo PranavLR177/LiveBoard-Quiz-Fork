@@ -16,6 +16,8 @@ export type Presentation = {
   title: string;
   slides: Slide[];
   className: string;
+  period?: string;
+  subcategory?: string;
   unit: string;
   topic: string;
   updated: number;

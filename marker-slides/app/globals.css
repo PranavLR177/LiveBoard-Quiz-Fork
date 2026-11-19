@@ -530,3 +530,8 @@ html,body{overflow-x:clip}
 .recent-names button{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:5ch;max-width:18ch;border:1px solid var(--line);border-radius:2rem;padding:.4rem .7rem;background:var(--paper);color:var(--ink)}
 .rail-corners .new-quiz-node{left:auto;right:0;transform:translate(45%,50%);background:var(--cobalt)}
 .rail-corners .thumb-count{right:24px;bottom:2px}
+
+.shelf-filters,.shelf-actions{display:flex;align-items:end;flex-wrap:wrap;gap:.6rem;margin:.7rem 0}
+.shelf-filters label{display:grid;gap:.3rem;font-size:.8rem;font-weight:600}
+.shelf-filters select,.shelf-actions button{padding:.45rem .7rem;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:.6rem}
+.shelf-actions{margin:.4rem .2rem}.shelf-actions button:last-child{color:var(--mark)}
