@@ -7,6 +7,11 @@ for (const migration of fs.readdirSync('drizzle').filter(name=>name.endsWith('.s
   sqlite.exec(fs.readFileSync('drizzle/'+migration,'utf8'));
 }
 globalThis.__testEnv = { DB: {
+  async batch(statements) {
+    sqlite.exec('BEGIN');
+    try { const results=[]; for(const statement of statements)results.push({meta:await statement.run()});sqlite.exec('COMMIT');return results; }
+    catch(error){sqlite.exec('ROLLBACK');throw error;}
+  },
   prepare(sql) {
     return { bind(...args) {
       const statement = sqlite.prepare(sql);
@@ -20,6 +25,9 @@ globalThis.__testEnv = { DB: {
 } };
 
 let code=fs.readFileSync('app/api/rooms/route.ts','utf8').replace("import { env } from 'cloudflare:workers';",'const env=globalThis.__testEnv;');
+const quizCode=fs.readFileSync('app/api/rooms/quiz.ts','utf8');
+const quizUrl='data:text/javascript;base64,'+Buffer.from(ts.transpileModule(quizCode,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText).toString('base64');
+code=code.replace("'./quiz'",JSON.stringify(quizUrl));
 const {GET,POST}=await import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(code,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText).toString('base64'));
 const slide={title:'Test',kicker:'Test',body:'Test',detail:'Test',notes:'Test',visual:'reaction'};
 const request=(data,token)=>new Request('https://test.local/api/rooms',{method:'POST',headers:{'Content-Type':'application/json','x-participant':'test-learner',...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify(data)});
@@ -31,6 +39,38 @@ assert.equal((await post({action:'control',current:1,duration:120},true)).status
 assert.equal((await post(mark)).status,200);
 const get=async()=>await(await GET(new Request('https://test.local/api/rooms?id='+room.id,{headers:{Authorization:'Bearer '+room.secret}}))).json();
 let state=await get();assert.equal(state.current,1);assert.equal(state.markers.length,2);assert.equal(state.secret,undefined);
+const quizId=crypto.randomUUID(), question={action:'quizShare',id:quizId,slide:0,prompt:'What changes?',image:''};
+assert.equal((await post(question)).status,403);
+assert.equal((await post(question,true)).status,200);
+assert.equal((await get()).current,1);
+assert.equal((await post({action:'quizAnswer',id:quizId,name:'Learner',answer:'The rate.'})).status,200);
+assert.equal((await post({action:'quizAnswer',id:quizId,name:'Learner',answer:'Retry'})).status,200);
+const learnerQuizzes=await (await post({action:'quizList'})).json();
+assert.equal(learnerQuizzes[0].answered,true);assert.equal(learnerQuizzes[0].answers,undefined);
+const teacherQuizzes=await (await post({action:'quizList'},true)).json();
+assert.deepEqual(teacherQuizzes[0].answers,[{name:'Learner',answer:'The rate.'}]);
+const complete={...question,action:'quizComplete',orientation:'vertical'};
+assert.equal((await post(complete)).status,403);
+const later=await (await post({...mark,slide:1})).json();
+assert.equal((await post(complete,true)).status,200);
+assert.equal((await post(complete,true)).status,200);
+const completed=await get();
+assert.equal(completed.slides.length,3);
+assert.equal(completed.slides[1].questionId,quizId);
+assert.equal(completed.slides[1].orientation,'vertical');
+assert.equal(completed.current,2);
+assert.equal(completed.markers.find(m=>m.id===later.id).slide,2);
+assert.equal((await (await post({action:'quizList'},true)).json())[0].slide,1);
+// pictures the caller already holds are left out of the list; credits must be Wikimedia Commons file pages
+const pictured=crypto.randomUUID(), pic={action:'quizShare',id:pictured,slide:0,prompt:'Name the organelle.',image:'data:image/jpeg;base64,AAAA',credit:'https://commons.wikimedia.org/wiki/File:Cell.jpg'};
+assert.equal((await post({...pic,id:crypto.randomUUID(),credit:'javascript:alert(1)'},true)).status,400);
+assert.equal((await post(pic,true)).status,200);
+const first=(await (await post({action:'quizList'})).json()).find(q=>q.id===pictured);
+assert.equal(first.image,pic.image);assert.equal(first.credit,pic.credit);
+const again=(await (await post({action:'quizList',have:[pictured]})).json()).find(q=>q.id===pictured);
+assert.equal(again.image,undefined);assert.equal(again.credit,pic.credit);
+assert.equal((await post({action:'quizAnswer',id:crypto.randomUUID(),answer:'x'})).status,404);
+assert.equal((await post({...mark,slide:1})).status,200);
 const id=state.markers[0].id;
 assert.equal((await post({action:'resolve',id,resolved:true})).status,403);
 assert.equal((await post({action:'reply',id,body:'Rates balance.'},true)).status,200);

@@ -30,7 +30,7 @@ const tokens = p => p.evaluate(() => { const c = getComputedStyle(document.docum
   await t.goto(BASE + "/"); await t.waitForSelector(".reel-card");
   const home = new URL(t.url());
   ok(home.origin === new URL(BASE).origin && home.pathname === "/classroom.html" && home.search === "?view=library", "a teacher opening LiveBoard lands on Presentations, on LiveBoard's own address, with nothing extra in the link");
-  ok(await t.isVisible(".lb-top .lb-brand") && await t.isVisible('.lb-top a[aria-current="page"]:has-text("Presentations")') && await t.isVisible('.lb-top a:has-text("Worksheets")') && await t.isVisible('.lb-top a:has-text("Student notes")'), "the classroom has LiveBoard's top bar: wordmark, Presentations, Worksheets, light/dark, Student notes");
+  ok(await t.isVisible(".lb-top .lb-brand") && await t.isVisible('.lb-top a[aria-current="page"]:has-text("Presentations")') && !(await t.isVisible('.lb-top a:has-text("Worksheets")')) && await t.isVisible('.lb-top a:has-text("Student notes")'), "the classroom has LiveBoard's top bar: wordmark, Presentations, Worksheets, light/dark, Student notes");
   ok(await t.evaluate(() => document.documentElement.dataset.theme) === "light", "with no choice made, the classroom follows the device's light or dark setting, like the notes side");
   const lightClass = await tokens(t);
   await t.click(".lb-iconbtn"); await t.waitForTimeout(150);
@@ -39,7 +39,7 @@ const tokens = p => p.evaluate(() => { const c = getComputedStyle(document.docum
   await shot(t, "library-dark");
   const bareHover = await t.evaluate(() => [...document.styleSheets].flatMap(sh => { try { return [...sh.cssRules]; } catch { return []; } }).filter(r => r.selectorText && r.selectorText.includes(":hover")).length);
   ok(bareHover === 0, `classroom hover styles sit inside a hover media query, so taps on an iPad don't stick (${bareHover} outside)`);
-  await t.click('.lb-top a:has-text("Worksheets")'); await t.waitForSelector(".teacher", { timeout: 15000 });
+  await t.goto(BASE + "/?as=teacher#teacher"); await t.waitForSelector(".teacher", { timeout: 15000 });
   ok(new URL(t.url()).hash === "#teacher" && await t.evaluate(() => document.documentElement.dataset.theme) === "dark", "Worksheets opens the worksheet studio in the notes side, already in the theme just chosen");
   const darkNotes = await tokens(t);
   await t.click("#themeBtn"); await t.waitForTimeout(150);

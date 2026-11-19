@@ -1,4 +1,5 @@
 'use client';
+import { additionalLessons } from './additionalLessons';
 import { go,link } from './nav';
 import { useEffect,useRef,useState,type ReactNode } from 'react';
 import { deletePresentation,listPresentations,savePresentation,type Presentation } from './presentations';
@@ -19,9 +20,10 @@ import Reel,{ReelStrip,classColor,type ReelItem} from './Reel';
      which slides drew the most, and saves them as a file for planning the next lesson.
    - Finding things. Search across title, class, unit and topic; filters appear only for the labels actually in use. */
 
-type Group='className'|'unit'|'topic';
+type Group='className'|'period'|'unit'|'topic'|'subcategory';
 type Order='updated'|'title'|Group;
-const groups:[Group,string][]=[['className','Class'],['unit','Unit'],['topic','Topic']];
+const groups:[Group,string][]=[['className','Class'],['period','Class period'],['unit','Unit'],['topic','Topic'],['subcategory','Subcategory']];
+const emptyFilters={className:'',period:'',unit:'',topic:'',subcategory:''};
 const isExample=(deck:Presentation)=>deck.id.startsWith('sample-classroom-');
 const ago=(at:number)=>{const d=Math.floor((Date.now()-at)/864e5);return d<=0?'today':d===1?'yesterday':d<30?d+' days ago':new Date(at).toLocaleDateString()};
 
@@ -68,7 +70,7 @@ function useSlowScroll(ref:React.RefObject<HTMLDivElement|null>,enabled:boolean,
 export default function PresentationLibrary({renderVisual}:{renderVisual:(type:string)=>ReactNode}) {
   const [decks,setDecks]=useState<Presentation[]>([]);
   const [order,setOrder]=useState<Order>('updated');
-  const [filters,setFilters]=useState({className:'',unit:'',topic:''});
+  const [filters,setFilters]=useState(emptyFilters);
   const [search,setSearch]=useState('');
   const [focus,setFocusRaw]=useState(0);
   const [slideAt,setSlideAt]=useState(0); // which slide of the front presentation is turned to the front
@@ -103,6 +105,12 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
         for(const lesson of newLessons){if(!saved.some(deck=>deck.id===lesson.id)){await savePresentation(lesson);saved.push(lesson)}}
         localStorage.setItem('liveboard-five-slide-examples-v1','1');
       }
+      if(!localStorage.getItem('liveboard-lit-bio-v1')){
+        for(const lesson of additionalLessons){
+          if(!saved.some(deck=>deck.id===lesson.id)){await savePresentation(lesson);saved.push(lesson)}
+        }
+        localStorage.setItem('liveboard-lit-bio-v1','1');
+      }
       setDecks(saved);
     }
     load().catch(()=>setError('Could not open your presentations.')).finally(()=>setLoading(false));
@@ -133,7 +141,7 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
     }
   }
   function create(){
-    setEdit({id:crypto.randomUUID(),title:'Untitled presentation',slides:[{...initialSlides[0],title:'Untitled slide',body:'',detail:'',notes:'',visual:'none'}],className:'',unit:'',topic:'',updated:Date.now()});
+    setEdit({id:crypto.randomUUID(),title:'',slides:[{...initialSlides[0],title:'Untitled slide',body:'',detail:'',notes:'',visual:'none'}],className:'',unit:'',topic:'',updated:Date.now()});
   }
   function download(name:string,text:string,type:string){
     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
@@ -152,11 +160,11 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
     download(fileName(deck.title)+'-questions.md',lines.join('\n'),'text/markdown');
   }
 
-  const facets=groups.filter(([key])=>decks.some(deck=>deck[key]));
+
   const words=search.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const ordered=decks.filter(deck=>groups.every(([key])=>!filters[key]||deck[key]===filters[key])&&words.every(word=>[deck.title,deck.className,deck.unit,deck.topic].join(' ').toLowerCase().includes(word))).sort((a,b)=>
     order==='updated'?Math.max(b.opened||0,b.updated||0)-Math.max(a.opened||0,a.updated||0): // most recently opened or edited first: that one is in front
-    a[order].localeCompare(b[order],undefined,{numeric:true,sensitivity:'base'})||a.title.localeCompare(b.title));
+    (a[order]||'').localeCompare(b[order]||'',undefined,{numeric:true,sensitivity:'base'})||a.title.localeCompare(b.title));
   const examples=decks.filter(isExample);
   /** Opens a presentation at a slide, and remembers it was the last one opened so it is in front next time. */
   function open(target:Presentation,slide=0){void savePresentation({...target,opened:Date.now()}).catch(()=>{}).finally(()=>go(editor(target.id,slide)))}
@@ -200,7 +208,7 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
           {menu===deck.id&&<span className="deck-menu-list" role="menu">
             <button role="menuitem" onClick={()=>{setMenu('');setInfo(deck)}}>Presentation info</button>
             <button role="menuitem" onClick={()=>{setMenu('');setEdit(deck)}}>Title and class…</button>
-            <button role="menuitem" disabled={busy} onClick={()=>{setMenu('');void update(async()=>{await savePresentation({...deck,id:crypto.randomUUID(),title:deck.title+' (copy)',updated:Date.now(),lastSession:undefined});setFilters({className:'',unit:'',topic:''})})}}>Duplicate</button>
+            <button role="menuitem" disabled={busy} onClick={()=>{setMenu('');void update(async()=>{await savePresentation({...deck,id:crypto.randomUUID(),title:deck.title+' (copy)',updated:Date.now(),lastSession:undefined});setFilters(emptyFilters)})}}>Duplicate</button>
             <button role="menuitem" onClick={()=>{setMenu('');download(fileName(deck.title)+'.liveboard.json',JSON.stringify({title:deck.title,slides:deck.slides},null,2),'application/json')}}>Save as a file</button>
             <button role="menuitem" className="deck-delete" onClick={()=>{setMenu('');setRemove(deck)}}>Delete…</button>
           </span>}</span>
@@ -209,14 +217,15 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
         </section>
         <ReelStrip items={items} focus={slideAt} onFocus={setSlideAt} color={classColor(deck.className)}/>
       </div>
-      {ordered.length>1&&<section className="deck-shelf" aria-labelledby="shelfTitle">
+    </>}
+      {decks.length>0&&<section className="deck-shelf" aria-labelledby="shelfTitle">
         <header><h2 id="shelfTitle">All presentations</h2><span>{ordered.length}</span><small>Pick one to bring it up front · double-click to open</small></header>
-        <ul>{ordered.map(other=><li key={other.id}><button className={'shelf-card'+(other.id===deck.id?' current':'')} style={{'--cc':classColor(other.className)} as any} aria-current={other.id===deck.id?'true':undefined} onClick={()=>bringUp(other.id)} onDoubleClick={()=>open(other)} title={other.id===deck.id?'In front now · double-click to open':'Bring up front · double-click to open'}>
+        <div className="shelf-filters">{groups.map(([key,label])=><label key={key}>{label}<select value={filters[key]} onChange={e=>{setFilters({...filters,[key]:e.target.value});setFocus(0)}}><option value="">All</option>{[...new Set(decks.map(d=>d[key]||'').filter(Boolean))].sort().map(v=><option key={v}>{v}</option>)}</select></label>)}<label>Sort by<select value={order} onChange={e=>{setOrder(e.target.value as Order);setFocus(0)}}><option value="updated">Most recent</option><option value="title">Title A–Z</option></select></label><button className="outline" onClick={()=>{setFilters(emptyFilters);setFocus(0)}}>Clear filters</button></div>
+        <ul>{ordered.map(other=><li key={other.id}><button className={'shelf-card'+(other.id===deck?.id?' current':'')} style={{'--cc':classColor(other.className)} as any} aria-current={other.id===deck?.id?'true':undefined} onClick={()=>bringUp(other.id)} onDoubleClick={()=>open(other)} title={other.id===deck?.id?'In front now · double-click to open':'Bring up front · double-click to open'}>
           <span className="shelf-thumb">{other.slides[0]&&<SlideThumb slide={other.slides[0]} renderVisual={renderVisual}/>}{!!other.lastSession?.open&&<em>{other.lastSession.open} open</em>}</span>
           <span className="shelf-text"><b>{other.title}</b><small><i/>{other.className||'No class'}</small><small>{other.slides.length+' slide'+(other.slides.length===1?'':'s')} · {ago(Math.max(other.opened||0,other.updated||0))}</small></span>
-        </button></li>)}</ul>
+        </button><div className="shelf-actions"><button onClick={()=>setEdit(other)}>Details</button><button disabled={busy} onClick={()=>update(()=>savePresentation({...other,id:crypto.randomUUID(),title:other.title.slice(0,23)+' (copy)',created:Date.now(),updated:Date.now(),lastSession:undefined}).then(()=>{}))}>Copy</button><button onClick={()=>setRemove(other)}>Delete</button></div></li>)}</ul>
       </section>}
-    </>}
     {examples.length>0&&decks.length>examples.length&&<p className="library-examples">The {examples.length} example{examples.length===1?'':'s'} can go once you have your own. <button disabled={busy} onClick={()=>update(async()=>{for(const deck of examples)await deletePresentation(deck.id)})}>Remove examples</button></p>}
 
     {info&&<div className="modal-backdrop" onClick={()=>setInfo(null)}><section className="modal" role="dialog" aria-modal="true" aria-label="Presentation info" onClick={e=>e.stopPropagation()}><button className="modal-close" aria-label="Close information" onClick={()=>setInfo(null)}>×</button><span className="eyebrow">PRESENTATION INFO</span><h2>{info.title}</h2><dl className="presentation-info"><dt>Created</dt><dd>{date(info.created)}</dd><dt>Last edited</dt><dd>{date(info.updated)}</dd><dt>Slides</dt><dd>{info.slides.length}</dd><dt>Markers</dt><dd>{markerItems(info).length}</dd>{groups.map(([key,label])=><div key={key}><dt>{label}</dt><dd>{info[key]||'Not set'}</dd></div>)}<dt>Last live class</dt><dd>{info.lastSession?date(info.lastSession.at):'Not taught live yet'}</dd></dl></section></div>}
@@ -260,10 +269,11 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
       <div className="preview-controls"><a className="primary" {...link(editor(review.id))}>Open presentation</a><button className="outline" disabled={!review.lastSession.total} onClick={()=>questionsFile(review)}>Save the questions</button></div>
     </section></div>}
 
-    {edit&&<div className="modal-backdrop"><section className="modal" role="dialog" aria-modal="true" aria-label="Presentation details"><button className="modal-close" aria-label="Close details" onClick={()=>setEdit(null)}>×</button><h2>Title and class</h2>
+    {edit&&<div className="modal-backdrop"><section className="modal" role="dialog" aria-modal="true" aria-label="Presentation details"><button className="modal-close" aria-label="Close details" onClick={()=>setEdit(null)}>×</button><h2>Presentation details</h2>
       <form onSubmit={event=>{event.preventDefault();const isNew=!decks.some(deck=>deck.id===edit.id);void update(async()=>{await savePresentation({...edit,title:edit.title.trim(),updated:Date.now()});setEdit(null);if(isNew)go(editor(edit.id))})}}>
-        <label>Title<input required value={edit.title} maxLength={100} onChange={event=>setEdit({...edit,title:event.target.value})}/></label>
-        {groups.map(([key,label])=><label key={key}>{label}<input value={edit[key]} maxLength={80} placeholder={key==='className'?'e.g. AP Chemistry, period 3':key==='unit'?'e.g. Unit 7':'e.g. Equilibrium'} onChange={event=>setEdit({...edit,[key]:event.target.value})}/></label>)}
+        <label>Title<input required value={edit.title} maxLength={30} onChange={event=>setEdit({...edit,title:event.target.value})}/><small>{edit.title.length}/30</small></label>
+        {groups.filter(([key])=>key!=='subcategory'||edit.subcategory!==undefined).map(([key,label])=><label key={key}>{label}{key==='topic'?' (optional)':''}<input value={edit[key]||''} maxLength={30} placeholder={key==='className'?'e.g. AP Chemistry, period 3':key==='unit'?'e.g. Unit 7':key==='period'?'e.g. Period 3':''} onChange={event=>setEdit({...edit,[key]:event.target.value})}/><small>{(edit[key]||'').length}/30</small></label>)}
+        {edit.subcategory===undefined&&<button type="button" className="outline full" onClick={()=>setEdit({...edit,subcategory:''})}>+ Add a subcategory (optional)</button>}
         <button className="primary full" disabled={busy||!edit.title.trim()}>Save presentation</button>
       </form>
     </section></div>}

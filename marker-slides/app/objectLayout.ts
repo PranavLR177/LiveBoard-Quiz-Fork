@@ -5,7 +5,11 @@ export function objectSlide(slide:Slide):Slide {
  const elements:SlideElement[]=[];
  const text=(source:'title'|'body'|'kicker'|'detail',x:number,y:number,width:number,height:number,fontSize:number,bold=false)=>{if(slide[source])elements.push({id:'base-'+source,kind:'text',source,text:slide[source],x,y,width,height,fontSize,bold,color:'theme'})};
  const background=slide.visual==='uploaded-slide';
- if(background&&slide.image)elements.push({id:'base-image',kind:'image',source:'image',src:slide.image,x:0,y:0,width:100,height:100,color:'theme'});
+ if(slide.questionId){
+ const vertical=slide.orientation==='vertical';
+ text('title',6,9,vertical?88:42,vertical?31:77,27,true);
+ if(slide.image)elements.push({id:'base-image',kind:'image',source:'image',src:slide.image,x:vertical?6:52,y:vertical?46:9,width:vertical?88:42,height:vertical?46:77,color:'theme'});
+ }else if(background&&slide.image)elements.push({id:'base-image',kind:'image',source:'image',src:slide.image,x:0,y:0,width:100,height:100,color:'theme'});
  else{
  text('kicker',6,5,88,5,13);
  text('title',6,13,88,20,slide.title.length>65?36:44,true);

@@ -33,7 +33,7 @@ export function supabaseRooms(): RoomsBackend | null {
         return r.data;
       }
       const { action, ...rest } = data;
-      const r = await sb.rpc("room_act", { p_room: room, p_action: action, p_data: rest, p_secret: who.secret || null, p_participant: who.participant || null });
+      const r = await sb.rpc(["quizComplete","quizShare","quizList","quizAnswer"].includes(action) ? "room_quiz" : "room_act", { p_room: room, p_action: action, p_data: rest, p_secret: who.secret || null, p_participant: who.participant || null });
       fail(r.error);
       return r.data;
     }
