@@ -535,3 +535,14 @@ html,body{overflow-x:clip}
 .shelf-filters label{display:grid;gap:.3rem;font-size:.8rem;font-weight:600}
 .shelf-filters select,.shelf-actions button{padding:.45rem .7rem;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:.6rem}
 .shelf-actions{margin:.4rem .2rem}.shelf-actions button:last-child{color:var(--mark)}
+
+.rail-corners .thumb-count{left:0;right:auto;bottom:0;transform:translate(-45%,50%);background:var(--paper);color:var(--ink)}
+.quiz-rail-group:has(+.question-rail)::after{content:'';position:absolute;right:6px;top:calc(100% - 24px);height:34px;border-right:2px solid var(--cobalt);pointer-events:none}
+.question-rail::before{content:'';position:absolute;right:6px;top:0;width:10px;height:16px;border-right:2px solid var(--cobalt);border-bottom:2px solid var(--cobalt);pointer-events:none;z-index:1}
+.qa-split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:0}
+.qa-split>section{min-width:0;padding:clamp(.5rem,2vw,1.5rem);overflow-wrap:anywhere}
+.qa-split .answer-pane{border-left:1px solid var(--line);background:var(--paper)}
+.qa-split img,.answer-pane input{max-width:100%}.answer-pane img{display:block;max-height:28vh;object-fit:contain}
+.qa-split .ghost-layout{grid-template-columns:1fr}.qa-split h3{margin:0 0 .8rem}
+.completed-question{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--desk)}
+.completed-question .slide-canvas{width:100%;margin:auto}.slide-container{display:contents}

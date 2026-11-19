@@ -1,7 +1,8 @@
 import type { Slide } from './data';
 
 export type QuizAnswer = { name: string; answer: string };
-export type SlideQuiz = { id: string; orientation?: 'horizontal'|'vertical'; credit?: string; prompt: string; image: string; marker?: string; answers?: QuizAnswer[] };
+export type ModelAnswer = {text:string;image?:string};
+export type SlideQuiz = { modelAnswer?:ModelAnswer; id: string; orientation?: 'horizontal'|'vertical'; credit?: string; prompt: string; image: string; marker?: string; answers?: QuizAnswer[] };
 export type RoomQuiz = SlideQuiz & { slide: number; answered?: boolean };
 
 export async function quizPicture(src: string) {
