@@ -71,7 +71,6 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
   const [decks,setDecks]=useState<Presentation[]>([]);
   const [order,setOrder]=useState<Order>('updated');
   const [filters,setFilters]=useState(emptyFilters);
-  const [filterOpen,setFilterOpen]=useState(false);
   const [search,setSearch]=useState('');
   const [focus,setFocusRaw]=useState(0);
   const [slideAt,setSlideAt]=useState(0); // which slide of the front presentation is turned to the front
@@ -220,8 +219,8 @@ export default function PresentationLibrary({renderVisual}:{renderVisual:(type:s
       </div>
     </>}
       {decks.length>0&&<section className="deck-shelf" aria-labelledby="shelfTitle">
-        <header><h2 id="shelfTitle">All presentations</h2><span>{ordered.length}</span><button className="outline" aria-expanded={filterOpen} onClick={()=>setFilterOpen(!filterOpen)}>Filters{Object.values(filters).some(Boolean)?' •':''}</button><small>Pick one to bring it up front · double-click to open</small></header>
-        {filterOpen&&<div className="shelf-filters">{groups.map(([key,label])=><label key={key}>{label}<select value={filters[key]} onChange={e=>{setFilters({...filters,[key]:e.target.value});setFocus(0)}}><option value="">All</option>{[...new Set(decks.map(d=>d[key]||'').filter(Boolean))].sort().map(v=><option key={v}>{v}</option>)}</select></label>)}<button className="outline" onClick={()=>{setFilters(emptyFilters);setFocus(0)}}>Clear filters</button><label>Sort by<select value={order} onChange={e=>{setOrder(e.target.value as Order);setFocus(0)}}><option value="updated">Most recent</option><option value="title">Title A–Z</option></select></label></div>}
+        <header><h2 id="shelfTitle">All presentations</h2><span>{ordered.length}</span><small>Pick one to bring it up front · double-click to open</small></header>
+        <div className="shelf-filters">{groups.map(([key,label])=><label key={key}>{label}<select value={filters[key]} onChange={e=>{setFilters({...filters,[key]:e.target.value});setFocus(0)}}><option value="">All</option>{[...new Set(decks.map(d=>d[key]||'').filter(Boolean))].sort().map(v=><option key={v}>{v}</option>)}</select></label>)}<label>Sort by<select value={order} onChange={e=>{setOrder(e.target.value as Order);setFocus(0)}}><option value="updated">Most recent</option><option value="title">Title A–Z</option></select></label><button className="outline" onClick={()=>{setFilters(emptyFilters);setFocus(0)}}>Clear filters</button></div>
         <ul>{ordered.map(other=><li key={other.id}><button className={'shelf-card'+(other.id===deck?.id?' current':'')} style={{'--cc':classColor(other.className)} as any} aria-current={other.id===deck?.id?'true':undefined} onClick={()=>bringUp(other.id)} onDoubleClick={()=>open(other)} title={other.id===deck?.id?'In front now · double-click to open':'Bring up front · double-click to open'}>
           <span className="shelf-thumb">{other.slides[0]&&<SlideThumb slide={other.slides[0]} renderVisual={renderVisual}/>}{!!other.lastSession?.open&&<em>{other.lastSession.open} open</em>}</span>
           <span className="shelf-text"><b>{other.title}</b><small><i/>{other.className||'No class'}</small><small>{other.slides.length+' slide'+(other.slides.length===1?'':'s')} · {ago(Math.max(other.opened||0,other.updated||0))}</small></span>

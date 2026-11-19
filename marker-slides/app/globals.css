@@ -546,3 +546,19 @@ html,body{overflow-x:clip}
 .qa-split .ghost-layout{grid-template-columns:1fr}.qa-split h3{margin:0 0 .8rem}
 .completed-question{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--desk)}
 .completed-question .slide-canvas{width:100%;margin:auto}.slide-container{display:contents}
+
+.shelf-filters select,.shelf-filters>.outline{box-sizing:border-box;height:2.8rem;margin:0}
+.shelf-filters label{margin:0}
+.shelf-filters>.outline{align-self:flex-end;display:inline-flex;align-items:center;justify-content:center}
+.slide-rail .quiz-rail-group .ghost-thumb,.slide-rail .quiz-rail-group .completed-thumb{
+  box-sizing:border-box;position:relative;display:grid;grid-template-columns:minmax(0,1fr);align-content:center;justify-items:start;gap:4px;
+  width:calc(100% - 40px);max-width:185px;height:74px;min-height:74px;aspect-ratio:auto;margin:5px 6px 7px 28px;padding:9px 12px;
+  text-align:left;border:1px dashed var(--cobalt);border-radius:8px;background:color-mix(in srgb,var(--cobalt) 12%,var(--paper));color:var(--ink)
+}
+.slide-rail .quiz-rail-group .completed-thumb{border-style:solid}
+.completed-thumb .mini-slide,.completed-thumb .slide-number{display:none}
+.completed-thumb .compact-question-label,.ghost-thumb small{font:700 11px/1.2 system-ui;color:var(--cobalt)}
+.completed-thumb .thumb-title,.ghost-thumb span{display:block;max-width:100%;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.question-rail .rail-corners{top:5px;left:28px;width:min(185px,calc(100% - 40px));height:74px;aspect-ratio:auto;transform:none}
+.question-rail .rail-corners button{width:18px;height:18px}
+.completed-question .slide-canvas{box-sizing:border-box;align-self:stretch;aspect-ratio:auto;height:auto;min-height:190px;margin:0;border-radius:0}
