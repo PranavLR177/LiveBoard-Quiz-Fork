@@ -32,6 +32,10 @@ export default function Page(){
  const [ghost,setGhost]=useState<{parent:number;id:string}|null>(null);
  const [quizSource,setQuizSource]=useState<number|null>(null),[quizEditing,setQuizEditing]=useState(false),[quizReview,setQuizReview]=useState(false);
  const [roomQuizzes,setRoomQuizzes]=useState<RoomQuiz[]>([]);
+ // pictures already received, by question id: quizList leaves them out after the first time
+ const quizPictures=useRef<Record<string,string>>({});
+ const haveQuizPictures=()=>Object.keys(quizPictures.current);
+ const withQuizPictures=(list:RoomQuiz[])=>list.map(q=>{if(typeof q.image==='string')quizPictures.current[q.id]=q.image;return {...q,image:q.image??quizPictures.current[q.id]??''}});
  const currentQuiz=ghost?slides[ghost.parent]?.quizzes?.find(q=>q.id===ghost.id):undefined;
  const sharedQuiz=roomQuizzes.find(q=>q.id===currentQuiz?.id);
  const [library,setLibrary]=useState(false);
@@ -160,8 +164,8 @@ export default function Page(){
    if(!room||ended||role==='projector')return;
    let stopped=false,timer:ReturnType<typeof setTimeout>;
    async function refresh(){try{
-     const list=await rooms.post(room,{action:'quizList'},{participant:participantRef.current,secret:role==='teacher'?secret:undefined});
-     if(!stopped&&Array.isArray(list))setRoomQuizzes(list);
+     const list=await rooms.post(room,{action:'quizList',have:haveQuizPictures()},{participant:participantRef.current,secret:role==='teacher'?secret:undefined});
+     if(!stopped&&Array.isArray(list))setRoomQuizzes(withQuizPictures(list));
    }catch{/* Older room installations still support the rest of the lesson. */}finally{if(!stopped)timer=setTimeout(refresh,3500)}}
    void refresh();return()=>{stopped=true;clearTimeout(timer)};
  },[room,role,secret,ended]);
@@ -208,7 +212,7 @@ export default function Page(){
    const parent=ghost.parent,at=parent+1,q=currentQuiz;
    if(slides.length>=40){setNotice('A presentation can have up to 40 slides.');return}
    await action(async()=>{
-     if(room)await api({action:'quizComplete',id:q.id,slide:parent,prompt:q.prompt,image:q.image,orientation:q.orientation});
+     if(room)await api({action:'quizComplete',id:q.id,slide:parent,prompt:q.prompt,image:q.image,credit:q.credit,orientation:q.orientation});
      roomVersion.current++;
      const question=objectSlide({questionId:q.id,modelAnswer:q.modelAnswer,questionAnswers:sharedQuiz?.answers??q.answers,orientation:q.orientation??'horizontal',credit:q.credit,title:q.prompt.trim(),image:q.image,kicker:'Q / QUESTION',body:'',notes:'',detail:'',visual:'none'});
      const next=slides.map((s,i)=>i===parent?{...s,quizzes:s.quizzes?.filter(item=>item.id!==q.id)}:s);
@@ -222,7 +226,7 @@ export default function Page(){
          lastSession:session?{...session,questions:session.questions.map(m=>({...m,slide:shift(m.slide)})),bySlide:[...session.bySlide.slice(0,at),0,...session.bySlide.slice(at)]}:undefined};
        setDeck(updated);await savePresentation(updated);
      }
-     if(room)setRoomQuizzes(await api({action:'quizList'}));
+     if(room)setRoomQuizzes(withQuizPictures(await api({action:'quizList',have:haveQuizPictures()})));
    });
  }
  function arrangeSlides(order:number[],focus:number){
@@ -348,7 +352,7 @@ export default function Page(){
 
  <div className="presentation-area"><section className="presentation"><div className="canvas-toolbar"><span><span className="status-dot"/>{room?'LIVE CLASSROOM':'EXAMPLE LESSON'}</span><div>{role==='student'&&room&&<button onClick={()=>{setFollow(true);setIndex(liveIndex);setSelected(null)}}>{follow?'● Following live':'↻ Follow live'}</button>}{room&&role==='student'&&markers.some(m=>m.author!=='Teacher')&&<button title="Add your questions and your teacher’s answers to your LiveBoard notes" onClick={keepQuestions}>{kept?'✓ In your notes · add again':'＋ Add to my notes'}</button>}{(currentQuiz||slide.questionId)&&role==='teacher'&&<button aria-pressed={quizReview} onClick={()=>setQuizReview(!quizReview)}>Review answers</button>}{role==='teacher'&&<button disabled={currentQuiz?!!sharedQuiz:!!room} onClick={()=>{if(currentQuiz){setQuizEditing(!quizEditing);return}setSlides(s=>s.map(objectSlide));setEditing(true);setReviewing(false);setSelected(null);setSpot(null)}}>{currentQuiz&&quizEditing?'Done editing':'✎ Edit slide'}</button>}</div></div>
  {currentQuiz&&ghost?<QuizCard key={currentQuiz.id} quiz={{...currentQuiz,answers:sharedQuiz?.answers||currentQuiz.answers}} editing={quizEditing&&!sharedQuiz} review={quizReview} shared={!!sharedQuiz} live={!!room}
- onComplete={completeQuiz} busy={busy} onChange={q=>writeQuiz(ghost.parent,q)} onError={setNotice} onShare={()=>action(async()=>{await api({action:'quizShare',id:currentQuiz.id,slide:ghost.parent,prompt:currentQuiz.prompt,image:currentQuiz.image});setQuizEditing(false);setRoomQuizzes(await api({action:'quizList'}));setNotice('Question shared with the class.')})}/>:<>
+ onComplete={completeQuiz} busy={busy} onChange={q=>writeQuiz(ghost.parent,q)} onError={setNotice} onShare={()=>action(async()=>{await api({action:'quizShare',id:currentQuiz.id,slide:ghost.parent,prompt:currentQuiz.prompt,image:currentQuiz.image,credit:currentQuiz.credit});setQuizEditing(false);setRoomQuizzes(withQuizPictures(await api({action:'quizList',have:haveQuizPictures()})));setNotice('Question shared with the class.')})}/>:<>
  <div className={slide.questionId&&role==='teacher'?'qa-split completed-question':'slide-container'}><div ref={slideRef} className={'slide-canvas '+(slide.questionId?'question-canvas ':'')+(placing?'placing':'')} onPointerDown={event=>{
    if (!placing || event.button!==0 || (event.target as Element).closest('button')) return;
    event.preventDefault();
@@ -367,8 +371,8 @@ export default function Page(){
  }} tabIndex={placing?0:-1} aria-label={placing?"Click to pin, drag to select a region, or press Enter to pin the center":undefined}><div className={'slide-content '+(slide.objectLayout?'object-layout':slide.visual==='uploaded-slide'?'imported-content':'')}><div className="slide-kicker">{slide.kicker}</div><h2>{slide.title.split('\n').map((line,i)=><span key={i}>{line}<br/></span>)}</h2><p className="slide-body">{slide.body}</p>{slide.image?<img className="slide-upload" src={slide.image} alt={slide.title}/>:<Visual type={slide.visual}/>}<div className="slide-takeaway"><span>↳</span>{slide.detail}</div><footer><span>LIVEBOARD{deck?.className?<> <i>/</i> {deck.className.toUpperCase()}</>:null}</span><span>{String(index+1).padStart(2,'0')}</span></footer></div>{markers.filter(m=>m.slide===index&&(role!=='projector'||m.author==='Teacher')).map(m=><button key={m.id} className={'pin free '+(m.resolved?'resolved':'')+(selected===m.id?' selected':'')} style={{left:m.x+'%',top:m.y+'%','--tc':markerColor(m)} as any} title={m.author+': '+m.body} aria-label={'Open '+kinds[m.kind]?.label+' from '+m.author} onClick={e=>{e.stopPropagation();if(role!=='projector')pick(m)}}/>)}{(selection || (spot?.slide===index ? spot.region : undefined) || (active?.slide===index ? active.region : undefined)) && <span className="region-outline" aria-hidden="true" style={regionStyle((selection || spot?.region || active?.region)!)}/>}
  <SlideElements slide={slide} editable={editing} selected={selectedElement} onSelect={setSelectedElement} renderVisual={type=><Visual type={type}/>} cropId={cropId} onCrop={setCropId} onChange={elements=>changeSlide(syncElements(slide,elements))}/>
  {spot?.slide===index&&<span className="pin free draft-pin" style={{left:spot.x+'%',top:spot.y+'%','--tc':role==='teacher'?'var(--teacher-marker)':'var(--student-marker)'} as any}/>} {placing&&<div className="placement-hint">Click to pin or drag to capture a region <button onClick={e=>{e.stopPropagation();cancelPlacement()}}>Cancel</button></div>}</div>
- {slide.questionId&&role==='teacher'&&<AnswerPane answer={slide.modelAnswer} editing={editing} onChange={modelAnswer=>changeSlide({...slide,modelAnswer})} onError={setNotice}/>}</div>
- {slide.questionId&&role==='teacher'&&<><div className="quiz-controls">{room&&!roomQuizzes.some(q=>q.id===slide.questionId)&&<button className="outline" onClick={()=>action(async()=>{await api({action:'quizShare',id:slide.questionId,slide:index,prompt:slide.title,image:slide.image||''});setRoomQuizzes(await api({action:'quizList'}))})}>Collect answers</button>}{slide.credit&&<a href={slide.credit} target="_blank" rel="noreferrer">Image source</a>}</div>{quizReview&&<section className="quiz-answer-list"><h3>Review answers</h3>{(roomQuizzes.find(q=>q.id===slide.questionId)?.answers??slide.questionAnswers??[]).map((a,i)=><p key={i}><b>{a.name}</b> {a.answer}</p>)}{!(roomQuizzes.find(q=>q.id===slide.questionId)?.answers??slide.questionAnswers)?.length&&<p>No answers yet.</p>}</section>}</>}
+ {slide.questionId&&slide.credit&&/^https:\/\/commons\.wikimedia\.org\//.test(slide.credit)&&<a className="image-credit" href={slide.credit} target="_blank" rel="noreferrer">Image: Wikimedia Commons</a>}{slide.questionId&&role==='teacher'&&<AnswerPane answer={slide.modelAnswer} editing={editing} onChange={modelAnswer=>changeSlide({...slide,modelAnswer})} onError={setNotice}/>}</div>
+ {slide.questionId&&role==='teacher'&&<><div className="quiz-controls">{room&&!roomQuizzes.some(q=>q.id===slide.questionId)&&<button className="outline" onClick={()=>action(async()=>{await api({action:'quizShare',id:slide.questionId,slide:index,prompt:slide.title,image:slide.image||'',credit:slide.credit});setRoomQuizzes(withQuizPictures(await api({action:'quizList',have:haveQuizPictures()})))})}>Collect answers</button>}{slide.credit&&<a href={slide.credit} target="_blank" rel="noreferrer">Image source</a>}</div>{quizReview&&<section className="quiz-answer-list"><h3>Review answers</h3>{(roomQuizzes.find(q=>q.id===slide.questionId)?.answers??slide.questionAnswers??[]).map((a,i)=><p key={i}><b>{a.name}</b> {a.answer}</p>)}{!(roomQuizzes.find(q=>q.id===slide.questionId)?.answers??slide.questionAnswers)?.length&&<p>No answers yet.</p>}</section>}</>}
  <div className="marker-legend"><span className="teacher-key">● Teacher</span><span className="student-key">● {role==='student'?'Yours':'Students'}</span></div>{role==='teacher'&&(<div className="slide-edit-actions" aria-label="Slide actions"><button disabled={!!room||index===0} onClick={()=>moveSlide(index,index-1)}>↑ Move earlier</button><button disabled={!!room||index===slides.length-1} onClick={()=>moveSlide(index,index+1)}>↓ Move later</button><button disabled={!!room||slides.length>=40} onClick={()=>duplicateSlide(index)}>Duplicate slide</button><button disabled={!!room||slides.length===1} onClick={()=>deleteSlide(highlighted??index)}>Delete slide</button></div>)}<div className="slide-controls"><div><button aria-label="Previous slide" disabled={index===0} onClick={()=>navigate(index-1)}>←</button><span>{String(index+1).padStart(2,'0')} <i>/ {String(slides.length).padStart(2,'0')}</i></span><button aria-label="Next slide" disabled={index===slides.length-1} onClick={()=>navigate(index+1)}>→</button></div><span className="marker-count">{markers.filter(m=>m.slide===index).length} markers on this slide</span><button className="place-button" disabled={capturing||(role==='student'&&!showStudentMarkers)} title={role==='student'&&!showStudentMarkers?'Your teacher has paused student markers':undefined} onClick={()=>{if(placing){cancelPlacement();return}if(role==='student'&&room)setFollow(false);setPlacing(true)}}><span className="small-pin"/>{placing?'Cancel placement':'Drop a marker'}</button></div>
  {role==='teacher'&&<details className="speaker-notes" open><summary>✧ Teacher’s notes <span>Only in teacher view</span></summary><p>{slide.notes||'Add speaking notes using Edit slide.'}</p></details>}
  </>}

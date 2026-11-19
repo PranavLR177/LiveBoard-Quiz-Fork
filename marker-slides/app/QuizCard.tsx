@@ -42,7 +42,7 @@ export default function QuizCard({ quiz, editing, review, shared, live, busy, on
 export function StudentQuiz({quiz, onSubmit}: {quiz: SlideQuiz & {answered?: boolean}; onSubmit:(answer:string)=>Promise<boolean>}) {
   const [value,setValue] = useState(''), [busy,setBusy] = useState(false), [sent,setSent] = useState(false);
   return <form className="ghost-stage student-quiz" onSubmit={async e=>{e.preventDefault();if(!value.trim()||busy)return;setBusy(true);try{if(await onSubmit(value.trim()))setSent(true)}finally{setBusy(false)}}}>
-    <div className="qa-split"><section><h3>Question</h3><div className="ghost-layout"><h2>{quiz.prompt}</h2>{quiz.image&&<img src={quiz.image} alt="Question visual"/>}</div></section><section className="answer-pane"><h3>Answer</h3>
+    <div className="qa-split"><section><h3>Question</h3><div className="ghost-layout"><h2>{quiz.prompt}</h2>{quiz.image&&<img src={quiz.image} alt="Question visual"/>}{quiz.credit&&/^https:\/\/commons\.wikimedia\.org\//.test(quiz.credit)&&<a className="image-credit" href={quiz.credit} target="_blank" rel="noreferrer">Image: Wikimedia Commons</a>}</div></section><section className="answer-pane"><h3>Answer</h3>
     {sent||quiz.answered ? <p role="status">Answer submitted</p> : <><label>Your answer<textarea required maxLength={2000} value={value} onChange={e=>setValue(e.target.value)}/></label><button className="primary" disabled={busy||!value.trim()}>Submit answer</button></>}
   </section></div></form>;
 }

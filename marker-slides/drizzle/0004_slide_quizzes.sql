@@ -14,6 +14,7 @@ CREATE TABLE `room_quizzes` (
 	`slide` integer NOT NULL,
 	`prompt` text NOT NULL,
 	`image` text NOT NULL,
+	`credit` text,
 	PRIMARY KEY(`room`, `id`),
 	FOREIGN KEY (`room`) REFERENCES `rooms`(`id`) ON UPDATE no action ON DELETE cascade
 );

@@ -370,4 +370,68 @@ select count(*) = 0 as gone_cls from public.teacher_classes() \gset
 \if :gone_cls \else \echo 'FAIL a teacher can delete their class' \quit \endif
 reset role;
 
+-- live-lesson quiz questions (room_quiz)
+set role anon;
+select public.room_create('Quizzes', '[{"title":"One","kicker":"01","body":"b","detail":"d","visual":"none","notes":""},{"title":"Two","kicker":"02","body":"b","detail":"d","visual":"none","notes":""}]') as qmade \gset
+select :'qmade'::jsonb->>'id' as qrid, :'qmade'::jsonb->>'secret' as qsecret \gset
+select gen_random_uuid() as rq1, gen_random_uuid() as rq2 \gset
+select public.room_act(:'qrid', 'marker', '{"kind":"question","body":"why","slide":1,"x":50,"y":50}', null, 'stu1') is not null as qmark \gset
+\set ON_ERROR_STOP 0
+\echo '(expected) a student cannot share a question, a bad id or picture is refused, and nobody can answer an unshared question:'
+select public.room_quiz(:'qrid', 'quizShare', jsonb_build_object('id', :'rq1', 'slide', 0, 'prompt', 'Why?', 'image', ''), null, 'stu1');
+select public.room_quiz(:'qrid', 'quizShare', jsonb_build_object('id', 'not-a-uuid', 'slide', 0, 'prompt', 'Why?', 'image', ''), :'qsecret'::uuid, null);
+select public.room_quiz(:'qrid', 'quizShare', jsonb_build_object('id', :'rq1', 'slide', 0, 'prompt', 'Why?', 'image', 'data:image/svg+xml;base64,AAAA'), :'qsecret'::uuid, null);
+select public.room_quiz(:'qrid', 'quizShare', jsonb_build_object('id', :'rq1', 'slide', 9, 'prompt', 'Why?', 'image', ''), :'qsecret'::uuid, null);
+select public.room_quiz(:'qrid', 'quizAnswer', jsonb_build_object('id', :'rq1', 'answer', 'Because'), null, 'stu1');
+\set ON_ERROR_STOP 1
+reset role;
+select count(*) = 0 as no_student_quiz from public.room_quizzes where room = :'qrid' \gset
+set role anon;
+\if :no_student_quiz \else \echo 'FAIL only the host can share a question' \quit \endif
+select public.room_quiz(lower(:'qrid'), 'quizShare', jsonb_build_object('id', :'rq1', 'slide', 0, 'prompt', ' Why does equilibrium shift? ', 'image', 'data:image/jpeg;base64,AAAA'), :'qsecret'::uuid, null) ? 'ok' as shared \gset
+\if :shared \else \echo 'FAIL the host shares a question (room code in any case)' \quit \endif
+select public.room_quiz(:'qrid', 'quizAnswer', jsonb_build_object('id', :'rq1', 'answer', 'Le Chatelier', 'name', 'Ana'), null, 'stu1') ? 'ok' as answered1 \gset
+select public.room_quiz(:'qrid', 'quizAnswer', jsonb_build_object('id', :'rq1', 'answer', 'Changed my mind', 'name', 'Ana'), null, 'stu1') ? 'ok' as answered_again \gset
+\if :answered1 \else \echo 'FAIL a student answers a shared question' \quit \endif
+reset role;
+select (select count(*) from public.room_quiz_answers where room = :'qrid') = 1 and (select answer from public.room_quiz_answers where room = :'qrid') = 'Le Chatelier' as first_stands \gset
+set role anon;
+\if :first_stands \else \echo 'FAIL each student answers once; the first answer stands' \quit \endif
+select public.room_quiz(:'qrid', 'quizList', '{}', null, 'stu1') as stu_list \gset
+select (:'stu_list'::jsonb->0->>'answered')::boolean and not (:'stu_list'::jsonb->0 ? 'answers') and :'stu_list'::jsonb->0->>'prompt' = 'Why does equilibrium shift?' as stu_view \gset
+\if :stu_view \else \echo 'FAIL a student sees the question and that they answered, never the class answers' \quit \endif
+select not (public.room_quiz(:'qrid', 'quizList', '{}', null, 'stu2')->0->>'answered')::boolean as other_unanswered \gset
+\if :other_unanswered \else \echo 'FAIL answered is per student' \quit \endif
+select public.room_quiz(:'qrid', 'quizList', '{}', :'qsecret'::uuid, null)->0->'answers'->0->>'name' = 'Ana' as host_sees \gset
+\if :host_sees \else \echo 'FAIL the host reads the answers' \quit \endif
+select (public.room_quiz(:'qrid', 'quizList', '{}', null, 'stu1')->0 ? 'image') and not (public.room_quiz(:'qrid', 'quizList', jsonb_build_object('have', jsonb_build_array(:'rq1')), null, 'stu1')->0 ? 'image') as have_skips \gset
+\if :have_skips \else \echo 'FAIL quizList leaves out pictures the caller already has' \quit \endif
+-- completing a question inserts a slide after its source and moves what came after
+select public.room_quiz(:'qrid', 'quizComplete', jsonb_build_object('id', :'rq2', 'slide', 0, 'prompt', 'Draw it', 'image', '', 'orientation', 'vertical', 'credit', 'https://commons.wikimedia.org/wiki/File:Cell.jpg'), :'qsecret'::uuid, null) ? 'ok' as completed \gset
+select public.room_get(:'qrid', :'qsecret'::uuid) as qroom \gset
+select jsonb_array_length(:'qroom'::jsonb->'slides') = 3 and :'qroom'::jsonb->'slides'->1->>'questionId' = :'rq2' and :'qroom'::jsonb->'slides'->1->>'credit' like 'https://commons%' and :'qroom'::jsonb->'slides'->2->>'title' = 'Two' as inserted \gset
+\if :inserted \else \echo 'FAIL completing a question inserts its slide after the source, with the picture credit' \quit \endif
+reset role;
+select (select slide from public.live_markers where room = :'qrid') = 2 as marker_moved \gset
+set role anon;
+\if :marker_moved \else \echo 'FAIL markers after the new slide move along with their slide' \quit \endif
+select public.room_quiz(:'qrid', 'quizComplete', jsonb_build_object('id', :'rq2', 'slide', 0, 'prompt', 'Draw it', 'image', ''), :'qsecret'::uuid, null) ? 'ok' as again \gset
+select jsonb_array_length(public.room_get(:'qrid', :'qsecret'::uuid)->'slides') = 3 as once_only \gset
+\if :once_only \else \echo 'FAIL completing the same question twice adds one slide' \quit \endif
+\set ON_ERROR_STOP 0
+\echo '(expected) a picture credit must be a Wikimedia Commons file page:'
+select public.room_quiz(:'qrid', 'quizComplete', jsonb_build_object('id', gen_random_uuid(), 'slide', 0, 'prompt', 'X', 'image', '', 'credit', 'javascript:alert(1)'), :'qsecret'::uuid, null);
+\set ON_ERROR_STOP 1
+reset role;
+-- the answer cap holds against made-up participant ids
+insert into public.room_quiz_answers(room, quiz, participant, name, answer) select :'qrid', :'rq1'::uuid, 'p' || g, 'S', 'a' from generate_series(1, 2999) g;
+set role anon;
+\set ON_ERROR_STOP 0
+\echo '(expected) the room is at its answer limit:'
+select public.room_quiz(:'qrid', 'quizAnswer', jsonb_build_object('id', :'rq1', 'answer', 'one more'), null, 'p-new');
+\set ON_ERROR_STOP 1
+reset role;
+select count(*) = 3000 as capped from public.room_quiz_answers where room = :'qrid' \gset
+\if :capped \else \echo 'FAIL a room caps its answers' \quit \endif
+
 \echo 'ALL SQL CHECKS PASS'

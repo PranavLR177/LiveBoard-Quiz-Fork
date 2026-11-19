@@ -5,7 +5,7 @@ export const replies = sqliteTable('replies', { id: text('id').primaryKey(), mar
 
 export const roomQuizzes=sqliteTable('room_quizzes',{
  room:text('room').notNull().references(()=>rooms.id,{onDelete:'cascade'}),
- id:text('id').notNull(),slide:integer('slide').notNull(),prompt:text('prompt').notNull(),image:text('image').notNull()
+ id:text('id').notNull(),slide:integer('slide').notNull(),prompt:text('prompt').notNull(),image:text('image').notNull(),credit:text('credit')
 }, table=>[primaryKey({columns:[table.room,table.id]})]);
 export const roomQuizAnswers=sqliteTable('room_quiz_answers',{
  room:text('room').notNull(),quiz:text('quiz').notNull(),participant:text('participant').notNull(),name:text('name').notNull(),answer:text('answer').notNull()

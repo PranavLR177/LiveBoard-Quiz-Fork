@@ -61,6 +61,15 @@ assert.equal(completed.slides[1].orientation,'vertical');
 assert.equal(completed.current,2);
 assert.equal(completed.markers.find(m=>m.id===later.id).slide,2);
 assert.equal((await (await post({action:'quizList'},true)).json())[0].slide,1);
+// pictures the caller already holds are left out of the list; credits must be Wikimedia Commons file pages
+const pictured=crypto.randomUUID(), pic={action:'quizShare',id:pictured,slide:0,prompt:'Name the organelle.',image:'data:image/jpeg;base64,AAAA',credit:'https://commons.wikimedia.org/wiki/File:Cell.jpg'};
+assert.equal((await post({...pic,id:crypto.randomUUID(),credit:'javascript:alert(1)'},true)).status,400);
+assert.equal((await post(pic,true)).status,200);
+const first=(await (await post({action:'quizList'})).json()).find(q=>q.id===pictured);
+assert.equal(first.image,pic.image);assert.equal(first.credit,pic.credit);
+const again=(await (await post({action:'quizList',have:[pictured]})).json()).find(q=>q.id===pictured);
+assert.equal(again.image,undefined);assert.equal(again.credit,pic.credit);
+assert.equal((await post({action:'quizAnswer',id:crypto.randomUUID(),answer:'x'})).status,404);
 assert.equal((await post({...mark,slide:1})).status,200);
 const id=state.markers[0].id;
 assert.equal((await post({action:'resolve',id,resolved:true})).status,403);

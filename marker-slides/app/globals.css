@@ -562,3 +562,4 @@ html,body{overflow-x:clip}
 .question-rail .rail-corners{top:5px;left:28px;width:min(185px,calc(100% - 40px));height:74px;aspect-ratio:auto;transform:none}
 .question-rail .rail-corners button{width:18px;height:18px}
 .completed-question .slide-canvas{box-sizing:border-box;align-self:stretch;aspect-ratio:auto;height:auto;min-height:190px;margin:0;border-radius:0}
+.image-credit { display: inline-block; margin-top: 6px; font-size: 12px; color: var(--muted, #6b6b80); text-decoration: underline; text-underline-offset: 2px; }
