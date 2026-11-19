@@ -139,7 +139,7 @@ function draw(panel: HTMLElement, how: "open" | "in" | "back" | "same") {
     const notes = q ? liveNotes().filter(n => n.title.toLowerCase().includes(q)).sort((a, b) => b.openedAt - a.openedAt).slice(0, 12) : [];
     const total = fs.reduce((t, x) => t + x.notes.length, 0);
     panel.style.removeProperty("--fc");
-    panel.innerHTML = `<header class="fshead"><div><span class="rskick">By subject, not by time</span><h2 id="fsTitle">Your ${groupWord()}s</h2><small>${fs.length} ${fs.length === 1 ? groupWord() : groupWord() + "s"} · ${total} note${total === 1 ? "" : "s"}</small></div>
+    panel.innerHTML = `<header class="fshead"><div><h2 id="fsTitle">Your ${groupWord()}s</h2><small>${fs.length} ${fs.length === 1 ? groupWord() : groupWord() + "s"} · ${total} note${total === 1 ? "" : "s"}</small></div>
         <div class="fsacts"><label class="fsfind">${ICON_SEARCH}<input id="fsQ" type="search" placeholder="Find a ${groupWord()} or a note…" autocomplete="off" aria-label="Find a ${groupWord()} or a note" value="${esc(query)}"></label>
         <button class="btn" id="fsNew">New folder</button><button class="rsclose" id="fsClose" aria-label="Close (Esc)">×</button></div></header>
       <div class="fsgrid" id="fsGrid">${hits.map(folderCard).join("") || (q ? "" : `<p class="fsempty">No ${groupWord()}s yet.</p>`)}</div>

@@ -245,7 +245,7 @@ async function boot() {
   onClassroomLeave(() => { void route(); refresh(); });
   $("#settingsBtn")!.onclick = () => openSettings(undefined, refresh);
   // a study session ends with a quiz, on the dial, of exactly what was marked during it
-  initSession({ exitTicket: ids => { queueRecall(ids, "Exit ticket"); if (location.hash.startsWith("#note-")) goHome(); } });
+  initSession({ openNote, exitTicket: ids => { queueRecall(ids, "Exit ticket"); if (location.hash.startsWith("#note-")) goHome(); } });
   const ss = $("#syncState")!; // the sync line opens Settings, where waiting or refused items are explained
   ss.setAttribute("role", "button"); ss.tabIndex = 0;
   ss.onclick = () => openSettings(undefined, refresh);

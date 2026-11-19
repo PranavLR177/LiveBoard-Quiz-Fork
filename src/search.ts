@@ -72,7 +72,7 @@ export function openSearch(openNote: (id: string) => void) {
     const terms = q.toLowerCase().split(/\s+/).filter(t => t.length > 1);
     if (!terms.length) {
       const recent = [...liveMarkers()].filter(m=>!onlyUnresolved.checked || understanding(m)!=='understood').sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6);
-      res.innerHTML = recent.length ? `<div class="qhead">Recent markers</div>${recent.map(m => row({ m, score: 0, field: TYPE_INFO[m.type].label, text: m.text || m.draft || "A blank point" }, [])).join("")}` : `<p class="qempty">Place a marker and its thoughts become searchable here.</p>`;
+      res.innerHTML = recent.length ? `<div class="qhead">Recent markers</div>${recent.map(m => row({ m, score: 0, field: TYPE_INFO[m.type].label, text: m.text || m.draft || "A blank point" }, [])).join("")}` : `<p class="qempty">No markers to search yet.</p>`;
     } else {
       const r = search(q,onlyUnresolved.checked);
       if(onlyUnresolved.checked)r.notes=[];

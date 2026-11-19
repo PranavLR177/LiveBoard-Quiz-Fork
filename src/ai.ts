@@ -151,7 +151,7 @@ async function post(body: Record<string, unknown>): Promise<unknown> {
   }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) {
-    if (r.status === 404) throw new Error("AI isn't set up on this server yet. See the setup guide in the README.");
+    if (r.status === 404) throw new Error("AI isn't available right now.");
     throw new Error(j.error || "The AI request failed. Try again.");
   }
   return j;

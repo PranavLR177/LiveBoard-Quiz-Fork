@@ -119,7 +119,7 @@ export function renderNote(stage: HTMLElement, id: string, goHome: () => void, o
       <input class="ptitle" id="ptitle" value="${esc(n.title)}" aria-label="Title" maxlength="140" placeholder="Untitled note">
       <div class="pulse"><span class="pfp" id="pfp"></span><span class="mcount" id="mcount"></span></div>
       ${backlinks.length ? `<div class="backlinks">Linked from ${backlinks.map(m => { const src = note(m.noteId); return src ? `<button data-open="${src.id}">${esc(src.title)}</button>` : ""; }).join("")}</div>` : ""}
-      <div class="hint" id="hint">Select text to mark it, or drop a marker anywhere: tap <b>+ Marker</b>, double-click a margin, or press and hold on the page. Drag a free marker to move it.</div>
+      <div class="hint" id="hint">Select text to add a marker, or tap <b>+ Marker</b> to drop one anywhere.</div>
       <div class="sughint" id="sugHint" hidden></div>
       <div class="editorwrap" id="ewrap"><svg class="strings" id="strings" aria-hidden="true"></svg><div id="editor"></div><div class="stringtags" id="stringTags"></div><div class="rail" id="rail" aria-label="Markers on this page"></div></div>
       <button class="tapzone" id="tapzone" aria-label="Add a line at the end">Tap here to keep writing</button>

@@ -40,7 +40,7 @@ export function openFolderEditor(editId: string | null, done: (courseId: string 
         <fieldset><legend>Mark on the tab</legend><div class="fe-icons" role="radiogroup" aria-label="Mark on the tab">${FOLDER_ICONS.map(i => `<button type="button" role="radio" class="fe-ic" data-icon="${esc(i)}" aria-label="${i ? esc(i) : "None"}" aria-checked="false">${i ? esc(i) : "–"}</button>`).join("")}</div></fieldset>
       </div>
     </div>
-    <p class="muted small">${cur ? `It holds every note in this ${groupWord()}. Move a note in or out from the ${groupWord()} menu at the top of the note.` : `It sits on the dial just left of now. Move notes in from the ${groupWord()} menu at the top of a note, or start one inside it.`}</p>
+    <p class="muted small">${cur ? `It holds every note in this ${groupWord()}. Move a note in or out from the ${groupWord()} menu at the top of the note.` : `Move notes in from the ${groupWord()} menu at the top of a note.`}</p>
     <div class="fedit-acts">${cur ? `<button type="button" class="btn danger-quiet" id="feRemove">${count ? "Take off the dial" : "Delete folder"}</button>` : ""}<span></span><button type="button" class="btn" id="feCancel">Cancel</button><button class="btn primary" id="feSave">${cur ? "Save" : "Make folder"}</button></div>
   </form>`;
   document.body.appendChild(wrap);

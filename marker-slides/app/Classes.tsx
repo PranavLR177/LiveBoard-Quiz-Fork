@@ -86,9 +86,9 @@ export default function Classes(){
     </header>
     {error&&<p role="alert" className="class-error">{error} <button onClick={()=>setError('')}>Dismiss</button></p>}
 
-    {!api?<section className="class-empty"><h2>Classes need LiveBoard accounts</h2><p>This copy of LiveBoard isn't connected to its server (Supabase), so there's nowhere to keep a class. Presentations and live lessons by code still work.</p></section>
+    {!api?<section className="class-empty"><h2>Classes need LiveBoard accounts</h2><p>Classes need an account. Presentations and live lessons by code still work.</p></section>
     :account===undefined?<p className="class-empty">Loading…</p>
-    :!account?<section className="class-empty"><h2>Sign in to make classes</h2><p>A class lives on your LiveBoard account, so your students can join it from any device. Sign in once and it works here too.</p><a className="primary" href={signIn}>Sign in to LiveBoard</a></section>
+    :!account?<section className="class-empty"><h2>Sign in to make classes</h2><p>Sign in to make a class your students can join from any device.</p><a className="primary" href={signIn}>Sign in to LiveBoard</a></section>
     :!classes.length&&!making?<section className="class-empty"><h2>No classes yet</h2><p>Make a class, then give your students its code. They join in LiveBoard under Classes. They'll see when you start a live lesson for the class, and you'll see their notes and markers for it.</p><button className="primary" onClick={()=>setMaking(true)}>Make your first class</button></section>
     :<div className="class-layout">
       <nav className="class-list" aria-label="Your classes">

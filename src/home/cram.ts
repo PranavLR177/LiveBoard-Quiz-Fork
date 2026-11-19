@@ -168,7 +168,7 @@ function setup(body: HTMLElement) {
       </section>
       <section class="crcol crgen">
         <h3>Extra questions from your notes</h3>
-        <p class="crnote">${s.aiOn ? "Written from the topics you picked. Say what you want, or leave it empty for a mix." : s.aiOn === false ? "AI isn't connected here, so these are fill-in-the-blanks built from sentences in your notes. Type a word or two to focus them." : "Checking whether AI is connected…"}</p>
+        <p class="crnote">${s.aiOn ? "Written from the topics you picked. Say what you want, or leave it empty for a mix." : s.aiOn === false ? "Without AI, these are fill-in-the-blanks from your notes. Type a word or two to focus them." : "Checking whether AI is connected…"}</p>
         <textarea id="crAsk" rows="2" maxlength="400" placeholder="${s.aiOn ? "e.g. harder questions on Le Chatelier, or what I'd get wrong on gas laws" : "e.g. equilibrium, enzymes"}" aria-label="What should the questions cover?">${esc(s.ask)}</textarea>
         ${ideas.length ? `<div class="crideas">${ideas.map(t => `<button data-idea="${esc(t)}">${esc(t)}</button>`).join("")}</div>` : ""}
         <button class="crgenbtn" id="crGen" ${s.busy || !s.topics.size ? "disabled" : ""}><span class="spark" aria-hidden="true">✦</span>${s.busy ? "Writing questions…" : s.gen.length ? "Generate more" : "Generate questions"}</button>

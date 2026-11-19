@@ -64,8 +64,8 @@ export function bindNoteMenu(btn: HTMLElement, menu: HTMLElement, getNote: () =>
     const here = heads.reduce((k, h, i) => (h.getBoundingClientRect().top < innerHeight * 0.45 ? i : k), -1);
     if (top) top.innerHTML = `<div class="nmstats"><span><b>${words.toLocaleString()}</b>word${words === 1 ? "" : "s"}</span><span><b>${Math.max(1, Math.round(words / 220))}</b>min read</span><span><b>${mk.length}</b>marker${mk.length === 1 ? "" : "s"}</span><span class="${due ? "due" : ""}"><b>${due}</b>due</span></div>`;
     dyn.innerHTML = `<div class="nmlabel">Outline</div>
-      ${heads.length ? `<div class="nmoutline">${heads.map((h, i) => `<button data-h="${i}" class="lv${h.tagName[1]}${i === here ? " here" : ""}" style="--i:${Math.min(i, 12)}">${esc(h.textContent!.trim().slice(0, 70))}</button>`).join("")}</div>` : `<p class="nmempty">Headings in this note show up here, so you can jump around a long lecture.</p>`}
-      <div class="nmlabel">Take it with you</div>
+      ${heads.length ? `<div class="nmoutline">${heads.map((h, i) => `<button data-h="${i}" class="lv${h.tagName[1]}${i === here ? " here" : ""}" style="--i:${Math.min(i, 12)}">${esc(h.textContent!.trim().slice(0, 70))}</button>`).join("")}</div>` : `<p class="nmempty">Add headings to jump around a long note.</p>`}
+      <div class="nmlabel">Export</div>
       <div class="nmtake"><button data-act="print" title="Clean page, no app chrome"><i aria-hidden="true">⎙</i>Print / PDF</button><button data-act="copy" title="Paste into a doc, email or chat"><i aria-hidden="true">⧉</i>Copy Markdown</button><button data-act="file" title="A .md file that opens anywhere"><i aria-hidden="true">↓</i>Download</button></div>`;
     dyn.querySelectorAll<HTMLButtonElement>("[data-h]").forEach(b => b.onclick = () => {
       const h = heads[Number(b.dataset.h)];
