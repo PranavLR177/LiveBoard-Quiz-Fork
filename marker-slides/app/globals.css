@@ -517,7 +517,9 @@ html,body{overflow-x:clip}
 .recent-presentations,.quiz-controls,.image-options{display:flex;flex-wrap:wrap;align-items:center;gap:.55rem;margin:.6rem 0}
 .recent-presentations button,.library-sort,.ghost-stage select{padding:.45rem .8rem;border:1px solid var(--line);border-radius:1.3rem;color:var(--ink);background:var(--paper)}
 .library-search{position:relative}.deck-search-results{position:absolute;top:100%;left:0;right:0;z-index:15;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:12px;max-height:18rem;overflow:auto;padding:.45rem}
-.deck-search-results button{display:grid;text-align:left;width:100%;gap:.3rem;padding:.65rem;border:0;color:inherit;background:transparent}.deck-search-results button:is(:hover,:focus-visible){background:var(--lavender)}.deck-search-results small{font-size:.8rem}
+.deck-search-results button{display:grid;text-align:left;width:100%;gap:.3rem;padding:.65rem;border:0;color:inherit;background:transparent}.deck-search-results button:focus-visible{background:var(--lavender)}
+@media (hover:hover){.deck-search-results button:hover{background:var(--lavender)}}
+.deck-search-results small{font-size:.8rem}
 .rail-corners .new-quiz-node{left:0;right:auto;transform:translate(-45%,50%)}.rail-corners .thumb-count{right:0}
 .question-rail .mini-slide,.question-canvas{background:color-mix(in srgb,var(--cobalt) 14%,var(--paper))}
 .question-rail .mini-slide{border:1px solid var(--cobalt)}.quiz-rail-group .ghost-thumb{width:calc(100% - 30px);margin:10px 6px 8px 24px;aspect-ratio:1.65;align-content:center}

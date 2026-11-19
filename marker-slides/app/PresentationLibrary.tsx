@@ -67,7 +67,7 @@ function useSlowScroll(ref:React.RefObject<HTMLDivElement|null>,enabled:boolean,
 
 export default function PresentationLibrary({renderVisual}:{renderVisual:(type:string)=>ReactNode}) {
   const [decks,setDecks]=useState<Presentation[]>([]);
-  const [order,setOrder]=useState<Order>('newest');
+  const [order,setOrder]=useState<Order>('updated');
   const [filters,setFilters]=useState({className:'',unit:'',topic:''});
   const [search,setSearch]=useState('');
   const [focus,setFocusRaw]=useState(0);
